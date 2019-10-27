@@ -1,15 +1,16 @@
 ################################################################################
 ################################################################################
 #
-# FILE: 
+# FILE: yelp_client.py
 #
 # BY: Dmitry Sedov 
 #
 # CREATED: Mon Oct 14 2019
 #
-# DESC: 
+# DESC: This file provides a class that facilitates requests to Yelp API.
 #
-# EXEC:
+# EXEC: import yelp_client
+#       python3 yelp_client.py
 #      
 ################################################################################
 ################################################################################
@@ -49,10 +50,12 @@ class Yelp_Client:
     def set_output_folder_path(self, output_folder_path):
         # Set the folder path for output files
         self.output_folder_path = output_folder_path
+        self.logger.debug('Output folder set to ' + output_folder_path)
 
     def set_input_file_path(self, input_file_path):
         # Set the file path for input files
         self.input_file_path = input_file_path
+        self.logger.debug('Input file set to ' + input_file_path)
 
     def search(self, params):
         # Make a single search request with a specified parameter
@@ -62,27 +65,33 @@ class Yelp_Client:
                 )
         return resp
 
-    def search_from_file():
+    def search_from_file(self):
         # Make multiple search requests reading parameters from file
         # Check if input and output locations are set
         if (hasattr(self, 'input_file_path') and
                 hasattr(self, 'output_folder_path')):
-            with open(input_file_path, 'r') as input_file:
+            with open(self.input_file_path, 'r') as input_file:
                 for line in input_file:
                     line = line.strip().split(',')
                     part = line[0]
+                    # NOTE: in the input line the order should be lat(y), lon(x)
                     params = construct_search_params(*line)
                     try:
+                        self.logger.debug('Getting info for part ' +
+                                part + '.')
                         yelp_response = self.search(params).json()
                         output_file_path = (self.output_folder_path +
                                 'part' + part + '.json')
-                        with open(output_folder_path, 'w+') as output_file:
-                            json.dump(output_file, yelp_response)
+                        with open(output_file_path, 'w+') as output_file:
+                            json.dump(yelp_response, output_file)
+                            self.logger.debug('Information for part ' +
+                                    part + ' obtained.')
                     except (SystemError, KeyboardInterrupt):
                         raise
                     except Exception:
                         self.logger.error('Error getting response for part '
                                 + part + '.', exc_info = True)
+                        continue
         else:
             self.logger.error('Input or output paths are not set.'
                     + 'No requests made.')
@@ -92,22 +101,23 @@ class Yelp_Client:
 
 ############################# Main code ########################################
 
-if __name__ = '__main__':
+if __name__ == '__main__':
     # Do a simple test run if program executed as main code
 
     # Set parameters
-    api_key = '***REMOVED***i'
-    download_folder_path = 
-    input_file_path = 
-    log_file_path =
+    api_key = '***REMOVED***'
+    input_file_path = '/home/user/projects/urban/data/processed/intermediate_use/yelp_request_locations/test/cbg_centroids.csv'
+    output_folder_path = '/home/user/projects/urban/data/input/Yelp/from_api/test/'
+    log_file_path = '/home/user/projects/urban/code/yelp-api-download/logs/yelp_api_test.log'
 
     # Initiate the yelp client
-    searcher = Yelp_Client(api_key = api_key)
+    searcher = Yelp_Client(api_key)
     searcher.set_input_file_path(input_file_path)
     searcher.set_output_folder_path(output_folder_path)
 
     # Set the logging options
-    searcher.logger.setLevel(logging.DEBUG)
+    logger = searcher.logger
+    logger.setLevel(logging.DEBUG)
     # Write log to file (DEBUG)
     fh = logging.FileHandler(log_file_path)
     fh.setLevel(logging.DEBUG)
@@ -119,10 +129,10 @@ if __name__ = '__main__':
     fh.setFormatter(formatter)
     ch.setFormatter(formatter)
     # Add the handlers to the logger
-    searcher.logger.addHandler(fh)
-    searcher.logger.addHandler(ch)
+    logger.addHandler(fh)
+    logger.addHandler(ch)
 
     # Do the search
-    seacher.search_from_file()
+    searcher.search_from_file()
 
 ################################################################################
