@@ -43,7 +43,8 @@ category = 'music'
 output_path = '/home/user/projects/urban/data/input/Events/eventful/'
 page_numbers_path = ('/home/user/projects/urban/data/processed/'
         'intermediate_use/eventful_page_numbers/eventful_page_numbers.csv')
-sample_size = 200
+sample_size = 50
+sort_order = 'date'
 
 ################################################################################
 
@@ -78,11 +79,16 @@ async def get_items_from_zip_page(session, sem, url, zip_code, page_number):
                 output_file.write(r)
             # If first page was requested, add total number of pages per zip
             # code
-            total_pages = json.loads(r)['page_count']
-            if (page_number == 1):
-                with open(page_numbers_path, 'a+') as page_numbers_file:
-                    page_numbers_file.write(f'{zip_code},{total_pages}\n')
-            return 1
+            try:
+                total_pages = json.loads(r)['page_count']
+                if (page_number == 1):
+                    with open(page_numbers_path, 'a+') as page_numbers_file:
+                        page_numbers_file.write(f'{zip_code},{total_pages}\n')
+                return 1
+            except json.decoder.JSONDecodeError:
+                logger.error(f'Unsuccessuful json decoding in zip {zip_code}'
+                        f' page {page_number}.')
+                return 0
 
 
 async def run(tasks):
@@ -112,7 +118,7 @@ if __name__ == '__main__':
     fh = logging.FileHandler(log_file_path)
     # Log levels
     ch.setLevel(logging.DEBUG)
-    fh.setLevel(logging.DEBUG)
+    fh.setLevel(logging.ERROR)
     # Log format
     formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
     ch.setFormatter(formatter)
@@ -156,6 +162,7 @@ if __name__ == '__main__':
                 'location': zip_code,
                 'date': date,
                 'category': category,
+                'sort_order': sort_order,
                 'page_number': 1}
         params = urlencode(params)
         url_to_add = url + params

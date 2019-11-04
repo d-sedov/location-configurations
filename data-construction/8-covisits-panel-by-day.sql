@@ -103,18 +103,15 @@ USING GIST (location);
 -- Function that creates a table with rows containing visits to nearby POIs
 -- for each restaurant-day.
 -- TODO: Deal with co_pois (invariant in monthly day level panel in any case)
-CREATE OR REPLACE FUNCTION pois_visits_within(meters INTEGER)
+CREATE OR REPLACE FUNCTION pois_visits_within_daily(meters INTEGER)
     RETURNS void AS
     $$
     DECLARE
         colname1 text;
-        colname2 text;
     BEGIN
-        colname1 := format('pois_within_%s', meters);
-        colname2 := format('visits_within_%s', meters);
-        RAISE NOTICE 'Creating columns: %, %', colname1, colname2;
+        colname1 := format('visits_within_%s', meters);
+        RAISE NOTICE 'Creating column: %.', colname1;
         EXECUTE format('ALTER TABLE restaurants_expanded ADD COLUMN %I INTEGER', colname1);
-        EXECUTE format('ALTER TABLE restaurants_expanded ADD COLUMN %I INTEGER', colname2);
         -- Join on distance-within
         CREATE TEMPORARY TABLE joined_by_distance AS (
             SELECT 
@@ -132,7 +129,6 @@ CREATE OR REPLACE FUNCTION pois_visits_within(meters INTEGER)
             WITH json_unpacked AS (
                 SELECT 
                     sname_place_id,
-                    -- co_sname_place_id,
                     value::INTEGER AS co_visits,
                     ordinality AS day
                 FROM joined_by_distance
@@ -142,19 +138,17 @@ CREATE OR REPLACE FUNCTION pois_visits_within(meters INTEGER)
                 sname_place_id,
                 day,
                 SUM(co_visits) AS co_visits_all
-                -- COUNT(DISTINCT co_sname_place_id) AS co_pois
             FROM json_unpacked
             GROUP BY sname_place_id, day
             ORDER BY sname_place_id, day
         );
-        RAISE NOTICE 'Updating restaurants_expanded';
+        RAISE NOTICE 'Updating restaurants_expanded.';
         EXECUTE format('UPDATE restaurants_expanded
             SET 
-                %1$I = c.co_pois,
-                %2$I = c.co_visits_all
+                %1$I = c.co_visits_all
             FROM co_visits_by_day AS c
             WHERE restaurants_expanded.sname_place_id = c.sname_place_id 
-            AND restaurants_expanded.day = c.day;', colname1, colname2);
+            AND restaurants_expanded.day = c.day;', colname1);
         DROP TABLE co_visits_by_day;
         DROP TABLE joined_by_distance;
     END;
@@ -163,18 +157,15 @@ CREATE OR REPLACE FUNCTION pois_visits_within(meters INTEGER)
 
 -- Function to count competitors and visits to competitors in proximity
 -- TODO: Deal with co_comp (invariant in monthly day level panel in any case)
-CREATE OR REPLACE FUNCTION comp_visits_within(meters INTEGER)
+CREATE OR REPLACE FUNCTION comp_visits_within_daily(meters INTEGER)
     RETURNS void AS
     $$
     DECLARE
         colname1 text;
-        colname2 text;
     BEGIN
-        colname1 := format('comp_within_%s', meters);
-        colname2 := format('comp_visits_within_%s', meters);
-        RAISE NOTICE 'Creating columns: %, %', colname1, colname2;
+        colname1 := format('comp_visits_within_%s', meters);
+        RAISE NOTICE 'Creating columns: %.', colname1;
         EXECUTE format('ALTER TABLE restaurants_expanded ADD COLUMN %I INTEGER', colname1);
-        EXECUTE format('ALTER TABLE restaurants_expanded ADD COLUMN %I INTEGER', colname2);
         -- Join on distance-within
         CREATE TEMPORARY TABLE joined_by_distance AS (
             SELECT 
@@ -186,7 +177,7 @@ CREATE OR REPLACE FUNCTION comp_visits_within(meters INTEGER)
             LEFT JOIN 
                 restaurants_with_geo AS rgo
             ON 
-                ST_DWithin(rg.location, rgo.location, 500)
+                ST_DWithin(rg.location, rgo.location, meters)
             WHERE
                 rg.sname_place_id != rgo.sname_place_id
         );
@@ -194,7 +185,6 @@ CREATE OR REPLACE FUNCTION comp_visits_within(meters INTEGER)
             WITH json_unpacked AS (
                 SELECT 
                     sname_place_id,
-                    -- comp_sname_place_id,
                     value::INTEGER AS comp_visits,
                     ordinality AS day
                 FROM joined_by_distance
@@ -204,18 +194,17 @@ CREATE OR REPLACE FUNCTION comp_visits_within(meters INTEGER)
                 sname_place_id,
                 day,
                 SUM(comp_visits) AS comp_visits_all
-                -- COUNT(DISTINCT comp_sname_place_id) AS co_comp
             FROM json_unpacked
             GROUP BY sname_place_id, day
             ORDER BY sname_place_id, day
         );
+        RAISE NOTICE 'Updating restaurants_expanded.';
         EXECUTE format('UPDATE restaurants_expanded
             SET 
-                %1$I = c.co_comp,
-                %2$I = c.comp_visits_all
+                %1$I = c.comp_visits_all
             FROM comp_visits_by_day AS c
             WHERE restaurants_expanded.sname_place_id = c.sname_place_id 
-            AND restaurants_expanded.day = c.day;', colname1, colname2);
+            AND restaurants_expanded.day = c.day;', colname1);
         -- TODO: REPLACE NULLs with 0s in newly created columns
         DROP TABLE comp_visits_by_day;
         DROP TABLE joined_by_distance;
