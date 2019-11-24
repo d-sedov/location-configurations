@@ -1,19 +1,22 @@
 ################################################################################
 ################################################################################
 #
-# FILE: 9-monthly-panel.py
+# FILE: 10-monthly-panel-with-events.py
 #
 # BY: Dmitry Sedov 
 #
-# CREATED: Tue Oct 29 2019
+# CREATED: Sun Nov 17 2019
 #
-# DESC: This code constructs a monthly panel dataset by
+# DESC: This code constructs a monthly panel with events dataset by
 #       1) Executing the spatial join to construct the pairs of colocated POIs (
 #       the first element of the pairs is always a restaurant).
 #       2) Importing the Patterns datasets of different vintages to PostgreSQL
-#       3) Exporting the resulting dataset to CSV
+#       to count visits and co-visits in a given month,
+#       3) Selecting events corresponding to a month and performing a spatial
+#       join to determine which locations are 'affected' by the events.
+#       4) Exporting the resulting dataset to CSV
 #
-# EXEC: python3 9-monthly-panel.py
+# EXEC: python3 10-monthly-panel-with-events.py
 #      
 ################################################################################
 ################################################################################
@@ -31,24 +34,22 @@ import pandas as pd # Data frames functionality
 ############################# Constants  ########################################
 
 # Single colocation distance: for testing purposes
-met = 500
+met = 200
 
 # Vintages
-vintages_2017 = [('2017', '{0:0=2d}'.format(x)) for x in range(6, 13)] 
-vintages_2018_1 = [('2018', '{0:0=2d}'.format(x)) for x in range(1, 7)] 
-vintages_2018_2 = [('2018', '{0:0=2d}'.format(x)) for x in range(7, 13)] 
+vintages_2018 = [('2018', '{0:0=2d}'.format(x)) for x in range(12, 13)] 
 vintages_2019 = [('2019', '{0:0=2d}'.format(x)) for x in range(1, 8)] 
-vintages_all = vintages_2017 # + vintages_2018 + vintages_2019
+vintages_all = vintages_2018 + vintages_2019
 
 # Log file path
 log_file_path = '/home/user/projects/urban/code/data-construction/logs/' \
-        + 'monthly_panel_construction.log'
+        + 'monthly_events_panel_construction.log'
 
 # Array to store the locations of data parts
 data_all = []
 
 # Output data path
-full_data_path = '/home/user/projects/urban/data/processed/descriptive/monthly_panel.csv'
+full_data_path = '/home/user/projects/urban/data/processed/descriptive/monthly_events_panel_200.csv'
 
 ################################################################################
 
@@ -83,6 +84,7 @@ CREATE TEMPORARY TABLE {patterns_table_name}(
     device_type json
 );
 """
+
 
 # Select restaurants, add location column, create indices (sname_place_id
 # and spatial).
@@ -170,10 +172,8 @@ CREATE TEMPORARY TABLE joined_by_distance_all AS (
 );
 """
 
-# TODO: check: the second inner join should actually be a left join! Otherwise
-# the resaurants with no co-located POIs are not counted.
 # Create a table with restaurants open in a given month (by joining to
-# patterns). Then (inner) join with non-restaurants to only include POIs that
+# patterns). Then (left) join with non-restaurants to only include POIs that
 # are also open in that given month.
 create_this_month_statement = """
 CREATE TEMPORARY TABLE this_month AS (
@@ -182,7 +182,7 @@ CREATE TEMPORARY TABLE this_month AS (
             j.*,
             p.dummy AS restaurant_open
         FROM 
-        {jbda} AS j
+            {jbda} AS j
         INNER JOIN
             {ptn} AS p
         ON 
@@ -190,23 +190,23 @@ CREATE TEMPORARY TABLE this_month AS (
         )
     SELECT 
         r.*,
-        p.dummy AS co_poi_open
+        p.raw_visit_counts AS co_visits
     FROM 
         restaurants_filtered_this_month AS r
-    INNER JOIN
+    LEFT JOIN
         {ptn} AS p
     ON 
         r.co_sname_place_id = p.sname_place_id
 );
 """
 
-# Group by sname_place_id (restaurant), count POIs open in that month in
+# group by sname_place_id (restaurant), count POIs open in that month in
 # proximity to the restaurant.
 create_aggregated_this_month_statement = """
 CREATE TEMPORARY TABLE aggregated_this_month AS (
     SELECT 
         sname_place_id,
-        COUNT (DISTINCT co_sname_place_id)
+        SUM(co_visits) AS co_visits_all
     FROM
         this_month AS t
     GROUP BY
@@ -214,34 +214,86 @@ CREATE TEMPORARY TABLE aggregated_this_month AS (
 );
 """
 
+# Select events corresponding to the current month, create a spatial index on
+# this temporary table.
+create_events_this_month_stamtement = """
+CREATE TEMPORARY TABLE events_this_month AS (
+    SELECT 
+        id,
+        location::geography AS location
+    FROM
+        eventful_by_point
+    WHERE
+        year = {year} AND month = {month} AND geocode_type = 'EVDB Geocoder'
+);
+CREATE INDEX events_this_month_location_idx
+ON events_this_month
+USING GIST (location);
+"""
+
+# Do the spatial join to mark events that are in proximity to each restaurant.
+spatial_join_events_statement = """
+CREATE TEMPORARY TABLE coevents_this_month AS (
+    WITH events_joined AS (
+        SELECT 
+            r.sname_place_id AS sname_place_id,
+            e.id AS event_id
+        FROM 
+            restaurants_with_geo AS r
+        LEFT JOIN
+            events_this_month AS e
+        ON
+            ST_DWithin(r.location, e.location, {meters})
+    )
+    SELECT
+        sname_place_id,
+        COUNT(event_id) AS events_count
+    FROM 
+        events_joined
+    GROUP BY
+        sname_place_id
+);
+CREATE UNIQUE INDEX coevents_this_month_sg_idx
+ON coevents_this_month (sname_place_id);
+"""
+
 # Statement to export the resulting month-table.
 export_statement = """
 COPY (SELECT * FROM aggregated_this_month) TO STDOUT
 WITH CSV HEADER;
 """
-
 ################################################################################
 
 
 ######################## Functions and classes #################################
 
-def initiate_logging():
-    # Initiate logger
+def join_by_distance_all(cur, meter):
+    """ This function creates a table with pairs of all restaurants and
+    co-location POIs. """
+    # Logging
     logger = logging.getLogger(__name__)
-    logger.setLevel(logging.DEBUG)
-    # Initiate console and file handlers
-    ch = logging.StreamHandler()
-    ch.setLevel(logging.DEBUG)
-    fh = logging.FileHandler(log_file_path)
-    fh.setLevel(logging.DEBUG)
-    # Add and set the formatter for the handlers
-    formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-    ch.setFormatter(formatter)
-    fh.setFormatter(formatter)
-    # Add the handlers to the logger
-    logger.addHandler(ch)
-    logger.addHandler(fh)
-    return logger
+
+    # Create temporary restaurants and non-restaurants tables 
+    logger.info('Creating temporary restaurants and non-restaurants tables.')
+    l_create_restaurants_geo_all_no_visits_statement = (
+            create_restaurants_geo_all_no_visits_statement
+            )
+    l_create_non_restaurants_geo_all_no_visits_statement = (
+            create_non_restaurants_geo_all_no_visits_statement
+            )
+    cur.execute(l_create_restaurants_geo_all_no_visits_statement)
+    cur.execute(l_create_non_restaurants_geo_all_no_visits_statement)
+
+    # Perform the spatial join
+    logger.info(f'Performing the spatial join restaurants-non-restaurants for {meter} meters.')
+    l_spatial_join_meter_statement = spatial_join_meter_statement.format(
+            meters = meter
+            )
+    cur.execute(l_spatial_join_meter_statement)
+    # Now the table joined_by_distance_all contains all pairs of restaurants
+    # with close POIs.
+
+    return "joined_by_distance_all"
 
 
 def import_patterns_vintage(cur, vintage):
@@ -280,43 +332,14 @@ def import_patterns_vintage(cur, vintage):
     return patterns_table_name
 
 
-def join_by_distance_all(cur, meter):
-    """ This function creates a table with pairs of all restaurants and
-    co-location POIs. """
-    # Logging
-    logger = logging.getLogger(__name__)
-
-    # Create temporary restaurants and non-restaurants tables 
-    logger.info('Creating temporary restaurants and non-restaurants tables.')
-    l_create_restaurants_geo_all_no_visits_statement = (
-            create_restaurants_geo_all_no_visits_statement
-            )
-    l_create_non_restaurants_geo_all_no_visits_statement = (
-            create_non_restaurants_geo_all_no_visits_statement
-            )
-    cur.execute(l_create_restaurants_geo_all_no_visits_statement)
-    cur.execute(l_create_non_restaurants_geo_all_no_visits_statement)
-
-    # Perform the spatial join
-    logger.info(f'Performing the spatial join for {meter} meters.')
-    l_spatial_join_meter_statement = spatial_join_meter_statement.format(
-            meters = meter
-            )
-    cur.execute(l_spatial_join_meter_statement)
-    # Now the table joined_by_distance_all contains all pairs of restaurants
-    # with close POIs.
-
-    return "joined_by_distance_all"
-
-
-def export_colocation_metrics(cur, vintage):
+def export_covisits_coevents(cur, vintage):
     """ This function exports the constructed month of the panel data. """
     
     # Logging
     logger = logging.getLogger(__name__)
 
     year, month = vintage
-    output_file_name = f'pois_close_{year}_{month}.csv'
+    output_file_name = f'covisits_coevents_{year}_{month}_{met}.csv'
     output_file_path = ('/home/user/projects/urban/data/processed/descriptive/'
             + output_file_name)
 
@@ -329,22 +352,19 @@ def export_colocation_metrics(cur, vintage):
     return output_file_path
 
 
-def main_join_then_count(conn, cur, meter):
-    """ This function loops through vintages, constructs the co-location counts
-    and exports the month-table. """
+def main_join_events_then_count(conn, cur, meter):
+    """ This function loops through vintages, constructs the co-visits and
+    co-events dataset corresponding to each vintage. """
     # Allow to access the list of paths to which the data has been exported
     global data_all
-    
+
     logger = logging.getLogger(__name__)
-
-    logger.info(f'Starting the database operations for {meter} meters.')
-
-    logger.info(f'Constructing the colocation table for {meter} meters.')
+    # Construct the co-location table (restaurants vs other establishments. 
+    logger.info(f'Constructing the colocation-coevents table for {meter} meters.')
     jbda = join_by_distance_all(cur, meter)
     conn.commit()
-    logger.info(f'Done constructing the colocation table for {meter} meters.')
+    logger.info(f'Done constructing the colocation-coevents table for {meter} meters.')
 
-    # Loop through vintages
     vintages = vintages_all
     logger.info(f'Will be looping through vintages {vintages}.')
     for vintage in vintages:
@@ -375,10 +395,9 @@ def main_join_then_count(conn, cur, meter):
                 )
         cur.execute(l_create_this_month_statement)
 
-        # Left inner join joined_by_distance with patterns to mark which POIs are open
-        # in proximity, aggregate for the count of such open POIs after grouping 
-        # by restaurants sname_place_id.
-        logger.info(f'Counting open POIs.')
+        # Left inner join joined_by_distance with patterns to aggregate
+        # co_visits after grouping by restaurant's sname place id.
+        logger.info(f'Counting co-visits.')
         l_create_aggregated_this_month_statement = (
                 create_aggregated_this_month_statement
                 )
@@ -386,29 +405,19 @@ def main_join_then_count(conn, cur, meter):
 
         # Add month year columns
         logger.info(f'Adding year {year} and month {month} columns.')
-        add_year_statement = """
+        add_year_month_statement = """
         ALTER TABLE aggregated_this_month
-        ADD COLUMN year INTEGER;
-        """
-        cur.execute(add_year_statement)
-
-        set_year_statement = """
-        UPDATE aggregated_this_month
-        SET year = {year};
-        """.format(year = year)
-        cur.execute(set_year_statement)
-        
-        add_month_statement = """
-        ALTER TABLE aggregated_this_month
+        ADD COLUMN year INTEGER,
         ADD COLUMN month INTEGER;
         """
-        cur.execute(add_month_statement)
+        cur.execute(add_year_month_statement)
 
-        set_month_statement = """
+        set_year_month_statement = """
         UPDATE aggregated_this_month
-        SET month = {month};
-        """.format(month = month)
-        cur.execute(set_month_statement)
+        SET year = {year},
+         month = {month};
+        """.format(year = year, month = month)
+        cur.execute(set_year_month_statement)
 
         # Add cbg and cbsa columns
         logger.info('Adding cbg and cbsa columns.')
@@ -445,9 +454,38 @@ def main_join_then_count(conn, cur, meter):
         WHERE aggregated_this_month.sname_place_id = p.sname_place_id;
         """.format(ptn = ptn)
         cur.execute(set_own_visits_statement)
-        
-        logger.info(f'Exporting the {year}_{month}-vintage colocation metrics.')
-        ofp = export_colocation_metrics(cur, vintage)
+
+        # Select events this month
+        logger.info('Selecting events for year {year}, month {month}.')
+        l_create_events_this_month_stamtement = create_events_this_month_stamtement.format(year = year, month = month)
+        cur.execute(l_create_events_this_month_stamtement)
+
+        # Spatial join aggregated_this_month with events_this_month,
+        # count events nearby each restaurant.
+        logger.info('Doing a spatial join of places and events.')
+        l_spatial_join_events_statement = spatial_join_events_statement.format(meters = meter)
+        cur.execute(l_spatial_join_events_statement)
+
+        # Add co_events column
+        logger.info('Adding the co_events column.')
+        add_coevents_statement = """
+        ALTER TABLE aggregated_this_month 
+        ADD COLUMN co_events INTEGER;
+        """
+        cur.execute(add_coevents_statement)
+        # Join own visits, covisits and coevents for export
+        set_coevents_statement = """
+        UPDATE aggregated_this_month
+        SET
+            co_events = cetm.events_count
+        FROM coevents_this_month AS cetm
+        WHERE aggregated_this_month.sname_place_id = cetm.sname_place_id;
+        """
+        cur.execute(set_coevents_statement)
+
+        # Export the month-table
+        logger.info(f'Exporting the {year}_{month}-vintage covistits and coevents.')
+        ofp = export_covisits_coevents(cur, vintage)
         logger.info(f'Done with vintage {year}_{month}.')
 
         # Save the path to which the data has been exported
@@ -461,31 +499,23 @@ def main_join_then_count(conn, cur, meter):
 
     return 1
 
-
-def concatenate_tables():
-    """ This function concatenates the output tables. """
-    data_all = []
-    vintages_2017 = [('2017', '{0:0=2d}'.format(x)) for x in range(6, 13)] 
-    vintages_2018 = [('2018', '{0:0=2d}'.format(x)) for x in range(1, 13)] 
-    vintages_2019 = [('2019', '{0:0=2d}'.format(x)) for x in range(1, 8)] 
-    vintages_all = vintages_2017 + vintages_2018 + vintages_2019
-
-    for vintage in vintages_all:
-        year, month = vintage
-        output_file_name = f'pois_close_{year}_{month}.csv'
-        output_file_path = ('/home/user/projects/urban/data/processed/descriptive/'
-                + output_file_name)
-        data_all.append(output_file_path)
-
-    data = []
-    for data_path in data_all:
-        data.append(pd.read_csv(data_path, dtype = {'cbg': pd.Int64Dtype(),
-            'cbsa': pd.Int64Dtype()}))
-
-    data = pd.concat(data, ignore_index = False)
-    data.to_csv(full_data_path, index = False)
-
-    return 1
+def initiate_logging():
+    # Initiate logger
+    logger = logging.getLogger(__name__)
+    logger.setLevel(logging.DEBUG)
+    # Initiate console and file handlers
+    ch = logging.StreamHandler()
+    ch.setLevel(logging.DEBUG)
+    fh = logging.FileHandler(log_file_path)
+    fh.setLevel(logging.DEBUG)
+    # Add and set the formatter for the handlers
+    formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+    ch.setFormatter(formatter)
+    fh.setFormatter(formatter)
+    # Add the handlers to the logger
+    logger.addHandler(ch)
+    logger.addHandler(fh)
+    return logger
 
 ################################################################################
 
@@ -501,18 +531,19 @@ if __name__ == '__main__':
     conn = psycopg2.connect('dbname=dataname1 user={user} password={user_pass}')
     cur = conn.cursor()
     logger.info('Database connection created.')
-    m = main_join_then_count(conn, cur, met)
+    m = main_join_events_then_count(conn, cur, met)
 
     # Close the database connection
     conn.close()
     logger.info('Completed. Database connection closed.')
 
-    # Append all of the tables for a single panel
+    # # Append all of the tables for a single panel
     # logger.info('Concatenating data frames.')
     # data = []
     # for data_path in data_all:
-        # logger.info(f'Appending file {data_path}')
-        # data = data.append(read_csv(data_path))
+        # logger.info(f'Appending file {data_path}.')
+        # data = data.append(pd.read_csv(data_path, dtype = {'cbg': pd.Int64Dtype(),
+            # 'cbsa': pd.Int64Dtype()}))
     # data = pd.concat(data, ignore_index = False)
     # data.to_csv(full_data_path, index = False)
     # logger.info(f'Data frames concatenated, written to {full_data_path}.')

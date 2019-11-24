@@ -23,10 +23,10 @@
 
 ############################# PARAMETERS #######################################
 api_key=***REMOVED***
-input_folder_path=/home/user/projects/urban/data/processed/intermediate_use/yelp_request_locations/ds_part/to_do/
-output_folder_path=/home/user/projects/urban/data/input/Yelp/from_api/ds_part/
-log_file_path=/home/user/projects/urban/code/yelp-api-download/logs/yelp_api_ds.log
-done_folder_path=/home/user/projects/urban/data/processed/intermediate_use/yelp_request_locations/ds_part/done/
+input_folder_path=/home/user/projects/urban/data/processed/intermediate_use/yelp_request_locations/add_part/to_do/
+output_folder_path=/home/user/projects/urban/data/input/Yelp/from_api/add_part/
+log_file_path=/home/user/projects/urban/code/yelp-api-download/logs/yelp_api_add.log
+done_folder_path=/home/user/projects/urban/data/processed/intermediate_use/yelp_request_locations/add_part/done/
 ################################################################################
 
 
