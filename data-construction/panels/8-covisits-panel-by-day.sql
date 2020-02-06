@@ -40,7 +40,7 @@ CREATE TEMPORARY TABLE restaurants AS (
         p.naics_code IN (722511, 722513)
 );
 -- Create key on restaurants        
-CREATE UNIQUE INDEX restaurants_sg_idx                                                                                                                                                                                                        
+CREATE UNIQUE INDEX restaurants_sg_idx 
 ON restaurants (sname_place_id);
 
 -- Restaurant transformed to daily observations

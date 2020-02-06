@@ -13,6 +13,8 @@
 # EXEC: CHANGE PARAMETERS api_key, n_records, output_folder_path,
 #       log_file_path, it your preferred ones.
 #       Run with ./phone_request_maker.sh
+#
+# NOTE: FILES HAVE BEEN MOVED, PARAMETERS NEED TO BE CHANGED.
 #      
 ################################################################################
 ################################################################################

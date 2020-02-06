@@ -16,6 +16,8 @@
 # EXEC: CHANGE PARAMETERS api_key, input_folder_path, output_folder_path,
 #       log_file_path, done_folder_path to your preferred ones.
 #       Run with ./request_maker.sh
+#
+# NOTE: FILE HAS BEEN MOVED, PARAMETERS NEED TO BE CHANGED.
 #      
 ################################################################################
 ################################################################################
