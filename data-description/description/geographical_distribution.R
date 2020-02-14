@@ -87,7 +87,8 @@ urban_establishments_by_county <- urban_establishments_by_zip %>%
     left_join(counties) %>%
     mutate(fips = str_pad(fips, 5, pad = "0")) %>% 
     group_by(fips) %>%
-    summarise(logn = log10(sum(n))) %>%
+    summarise(s = sum(n),
+              logn = log10(sum(n))) %>%
     filter(logn >= 1)
 
 restaurants_by_county <- restaurants %>%
@@ -115,8 +116,11 @@ p1 <- plot_usmap(regions = 'counties',
                  size = 0.025,
                  linetype = 0,
                  color = 'white',
-                 values = 'logn') + 
-    scale_fill_continuous(name = 'Log establishments', 
+                 values = 's') + 
+    scale_fill_continuous(name = 'Establishments', 
+                          trans = 'log10',
+                          breaks = c(10, 100, 1000, 10000, 100000),
+                          label = comma,
                           guide = guide_colourbar(order = 0),
                           low = '#BADAF1',
                           high = '#00207F',
