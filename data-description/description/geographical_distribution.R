@@ -129,7 +129,10 @@ p1 <- plot_usmap(regions = 'counties',
                                        & lon.1 > quantile(lon.1, 0.01, na.rm = T)),
                aes(x = lon.1, y = lat.1, size = total),
                color = '#e70300', alpha = 0.5) +
-    scale_size_continuous(name = 'Restaurants', guide = guide_legend(order = 1)) + 
+    scale_size_continuous(name = 'Restaurants', 
+                          label = comma, 
+                          breaks = c(1000, 5000, 10000, 20000),
+                          guide = guide_legend(order = 1, reverse=T)) + 
     theme(panel.background = element_rect(color = 'black',
                                           fill = 'white',
                                           linetype = 0),
