@@ -1,0 +1,326 @@
+################################################################################
+################################################################################
+#
+# FILE: sorting.R
+#
+# BY: Dmitry Sedov 
+#
+# CREATED: Fri Feb 14 2020
+#
+# DESC: This file creates the graphs on the preliminary evidence of sorting 
+#       by rating, price type and categories. 
+#
+################################################################################
+################################################################################
+
+
+################################ Libraries #####################################
+
+library(readr)
+library(dplyr)
+library(xtable)
+library(kableExtra)
+library(jsonlite)
+library(tidyr)
+library(ggplot2)
+library(scales)
+library(gtools)
+
+################################################################################
+
+################################# Options ######################################
+
+# Set the tables properties
+# Footnote font size
+options(xtable.size = 'footnotesize')
+# Page top placement
+options(xtable.table.placement = 't')
+
+# Input folder
+input_folder_path = '/Users/muser/dfolder/Research/urban/data/output/descriptive'
+
+# Output folders
+tables_folder_path = '/Users/muser/dfolder/Research/urban/output/tables/preliminary/sorting'
+plots_folder_path = '/Users/muser/dfolder/Research/urban/output/plots/preliminary/sorting'
+
+# Visits data vintage
+year = '2018'
+month = 'October'
+
+# My theme for plots 
+my_theme <- theme(legend.text = element_text(size = 14),
+                  legend.title = element_text(size= 16),
+                  plot.title = element_text(hjust = 0.5, size = 18)
+)
+mycolorscheme1 <- c('black', 'orange', 'purple')
+mycolorscheme2 <- c('blue', 'red', 'darkgreen')
+mycolorscheme3 <- c('#e70300', '#00279a', '#009500', '#722ab5', '#ffe200')
+
+################################################################################
+
+################################# Functions ####################################
+
+# Function to remove outliers
+remove_outliers <- function(x, na.rm = TRUE, ...) {
+    qnt <- quantile(x, probs=c(.25, .75), na.rm = na.rm, ...)
+    H <- 1.5 * IQR(x, na.rm = na.rm)
+    y <- x
+    y[x < (qnt[1] - H)] <- NA
+    y[x > (qnt[2] + H)] <- NA
+    y
+}
+
+################################################################################
+
+############################## Prepare data ####################################
+
+# Import data
+restaurants <- read_csv(file.path(input_folder_path, 'data_restaurants.csv'))
+# Import cbg data
+cbgs <- read_csv(file.path(input_folder_path, 'data_cbg.csv'))
+
+# Set price to missing if it is -1
+restaurants <- restaurants %>% mutate(price = ifelse(price == -1, NA, price))
+
+# Replace missing (null) categories with NAs
+restaurants <- restaurants %>% mutate(categories = ifelse(categories == 'null', 
+                                                          NA, 
+                                                          categories))
+
+# Transform the total minutes open variable
+restaurants <- restaurants %>%
+    mutate(perc_time_open = 100 * total_minutes_open / (24 * 60 * 31)) %>%
+    mutate(perc_time_open = replace(perc_time_open,  
+                                    which(perc_time_open <= 0.1 | perc_time_open >= 100.1), 
+                                    NA))
+
+# Encode 'urban' restaurants
+restaurants <- restaurants %>%
+    mutate(urban = !is.na(cbsa)) 
+
+# Count restaurant's categories
+restaurants <- restaurants %>%
+    mutate(n_categories = sapply(categories, 
+                                 function(x) {
+                                     ifelse(is.na(x), 
+                                            NA,
+                                            ifelse(x == "[]",
+                                                   0,
+                                                   nrow(fromJSON(x))
+                                            )
+                                     )
+                                 }
+    )
+    )
+
+# Summarise restaurants by cbg
+restaurants$dummy <- 1
+restaurants_by_cbg <- restaurants %>% 
+    mutate(row = row_number()) %>% 
+    pivot_wider(names_from = price, 
+                names_prefix = 'price',
+                values_from = dummy, 
+                values_fill = list(dummy = 0)
+                ) %>% 
+    group_by(cbg) %>% 
+    summarise(n = n(),
+              price1 = sum(price1),
+              price2 = sum(price2),
+              price3 = sum(price3),
+              price4 = sum(price4),
+              priceNA = sum(priceNA),
+              n_categories = mean(n_categories, 
+                                  na.rm = T),
+              rating = mean(rating,
+                            na.rm = T))
+
+# Replace missing values with 0 (no restaurants / establishments in cbgs)
+cbgs <- cbgs %>% 
+    mutate(urban = !is.na(cbsa),
+           rest_number = replace(rest_number, 
+                                 which(is.na(rest_number)),
+                                 0),
+           est_number = replace(est_number,
+                                which(is.na(est_number)),
+                                0),
+           rest_area = replace(rest_area, 
+                               which(is.na(rest_area)),
+                               0),
+           est_area = replace(est_area,
+                              which(is.na(est_area)),
+                              0),
+           area_km2 = area_m2 / 1000000
+    )
+
+# Select urban cbgs
+cbgs <- cbgs %>% filter(urban)
+
+# Join data to summarise on the cbg-level
+cbgs <- left_join(cbgs, restaurants_by_cbg) %>% filter(rest_number > 0)
+
+# Remove outliers
+# cbgs <- cbgs %>% 
+#     mutate_at(vars(est_number, 
+#                    number_devices_residing), 
+#               funs(remove_outliers))
+
+cbgs <- cbgs %>% mutate_at(.vars = vars(starts_with('price')), `/`, quote(n))
+cbgs_price_categories <- cbgs %>% 
+    select(cbg, est_number, number_devices_residing, starts_with('price')) %>% 
+    pivot_longer(cols = starts_with('price'), 
+                 names_to = 'price', 
+                 values_to = 'share')
+
+################################################################################
+
+################################ Plots #########################################
+
+# Set plot limits 
+x_limits_e <- quantile(cbgs$est_number, probs = c(0.1, 0.9))
+x_limits_d <- quantile(cbgs$number_devices_residing, probs = c(0.1, 0.9))
+
+# Establishmets-price categories distribution plot
+p1e <- ggplot(data = cbgs_price_categories, 
+              aes(x = est_number,
+                  y = share, 
+                  color = price)) + 
+    geom_smooth(se = FALSE) +
+    scale_color_manual(name = 'Price category', 
+                       values = mycolorscheme3,
+                       labels = c('price1' = '$',
+                                  'price2' = '$$',
+                                  'price3' = '$$$',
+                                  'price4' = '$$$$',
+                                  'priceNA' = 'NA'
+                                  )) +
+    theme_bw(base_family = 'Times') +
+    my_theme + 
+    theme(text = element_text(size = 12)) +
+    xlab('Establishment number') +
+    ylab('Share of restaurants') +
+    xlim(x_limits_e) + 
+    coord_cartesian(xlim = x_limits_e, 
+                    ylim = c(0, 0.5))
+ggsave(filename = file.path(plots_folder_path, 'establishments_prices.pdf'),
+       device = cairo_pdf,
+       plot = p1e, 
+       width = 10,
+       height = 6)
+
+# Devices-price categories distribution plot
+p1d <- ggplot(data = cbgs_price_categories, 
+              aes(x = number_devices_residing,
+                  y = share,
+                  color = price)) + 
+    geom_smooth(se = FALSE) +
+    scale_color_manual(name = 'Price category', 
+                       values = mycolorscheme3,
+                       labels = c('price1' = '$',
+                                  'price2' = '$$',
+                                  'price3' = '$$$',
+                                  'price4' = '$$$$',
+                                  'priceNA' = 'NA'
+                       )) +
+    theme_bw(base_family = 'Times') +
+    my_theme + 
+    theme(text = element_text(size = 12)) +
+    xlab('Devices number') +
+    ylab('Share of restaurants') +
+    xlim(x_limits_d) + 
+    coord_cartesian(xlim = x_limits_d, 
+                    ylim = c(0, 0.5))
+ggsave(filename = file.path(plots_folder_path, 'devices_prices.pdf'),
+       device = cairo_pdf,
+       plot = p1d, 
+       width = 10,
+       height = 6)
+
+# Establishments-rating plot
+p2e <- ggplot(data = cbgs,
+              aes(x = est_number,
+                  y = rating)) +
+    geom_smooth(color = mycolorscheme3[2], fill = mycolorscheme3[2]) +
+    stat_summary_bin(fun.y = 'mean', 
+                     bins = 30, 
+                     size = 1, 
+                     geom = 'point') +
+    theme_bw(base_family = 'Times') +
+    my_theme +
+    theme(text = element_text(size = 12)) +
+    xlab('Establishment number') +
+    ylab('Average rating') +
+    xlim(x_limits_e) + 
+    coord_cartesian(xlim = x_limits_e, ylim = c(3.25, 3.7))
+ggsave(filename = file.path(plots_folder_path, 'establishments_rating.pdf'),
+       device = cairo_pdf,
+       plot = p2e, 
+       width = 10,
+       height = 6)
+
+# Devices-rating plot
+p2d <- ggplot(data = cbgs,
+              aes(x = number_devices_residing,
+                  y = rating)) +
+    geom_smooth(color = mycolorscheme3[2], fill = mycolorscheme3[2]) +
+    stat_summary_bin(fun.y = 'mean', 
+                     bins = 30, 
+                     size = 1, 
+                     geom = 'point') +
+    theme_bw(base_family = 'Times') +
+    my_theme +
+    theme(text = element_text(size = 12)) +
+    xlab('Devices number') +
+    ylab('Average rating') +
+    xlim(x_limits_d) + 
+    coord_cartesian(xlim = x_limits_d, ylim = c(3.25, 3.7))
+ggsave(filename = file.path(plots_folder_path, 'devices_rating.pdf'),
+       device = cairo_pdf,
+       plot = p2d, 
+       width = 10,
+       height = 6)
+
+# Establishments - categories plot
+p3e <- ggplot(data = cbgs,
+              aes(x = est_number,
+                  y = n_categories)) +
+    geom_smooth(color = mycolorscheme3[2], fill = mycolorscheme3[2]) +
+    stat_summary_bin(fun.y = 'mean', 
+                     bins = 30, 
+                     size = 1, 
+                     geom = 'point') +
+    theme_bw(base_family = 'Times') +
+    my_theme +
+    theme(text = element_text(size = 12)) +
+    xlab('Establishment number') +
+    ylab('Average # categories') +
+    xlim(x_limits_e) + 
+    coord_cartesian(xlim = x_limits_e)
+ggsave(filename = file.path(plots_folder_path, 'establishments_categories.pdf'),
+       device = cairo_pdf,
+       plot = p3e, 
+       width = 10,
+       height = 6)
+
+# Devices - categories plot
+p3d <- ggplot(data = cbgs,
+              aes(x = number_devices_residing,
+                  y = n_categories)) +
+    geom_smooth(color = mycolorscheme3[2], fill = mycolorscheme3[2]) +
+    stat_summary_bin(fun.y = 'mean', 
+                     bins = 30, 
+                     size = 1, 
+                     geom = 'point') +
+    theme_bw(base_family = 'Times') +
+    my_theme +
+    theme(text = element_text(size = 12)) +
+    xlab('Number devices residing') +
+    ylab('Average # categories') +
+    xlim(x_limits_d) + 
+    coord_cartesian(xlim = x_limits_d)
+ggsave(filename = file.path(plots_folder_path, 'devices_categories.pdf'),
+       device = cairo_pdf,
+       plot = p3d, 
+       width = 10,
+       height = 6)
+
+################################################################################

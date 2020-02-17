@@ -53,7 +53,7 @@ my_theme <- theme(legend.text = element_text(size = 14),
 )
 mycolorscheme1 <- c('black', 'orange', 'purple')
 mycolorscheme2 <- c('blue', 'red', 'darkgreen')
-mycolorscheme3 <- c('#e70300', '#00279a', '#009500', '#ffe200', '#722ab5')
+mycolorscheme3 <- c('#e70300', '#00279a', '#009500', '#722ab5', '#ffe200')
 
 ################################################################################
 

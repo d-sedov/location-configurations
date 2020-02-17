@@ -40,8 +40,8 @@ options(xtable.table.placement = 't')
 input_folder_path = '/Users/muser/dfolder/Research/urban/data/output/descriptive'
 
 # Output folders
-tables_folder_path = '/Users/muser/dfolder/Research/urban/output/tables/descriptive'
-plots_folder_path = '/Users/muser/dfolder/Research/urban/output/plots/descriptive'
+tables_folder_path = '/Users/muser/dfolder/Research/urban/output/tables/preliminary/proximity'
+plots_folder_path = '/Users/muser/dfolder/Research/urban/output/plots/preliminary/proximity'
 
 # Visits data vintage
 year = '2018'
@@ -54,7 +54,7 @@ my_theme <- theme(legend.text = element_text(size = 14),
 )
 mycolorscheme1 <- c('black', 'orange', 'purple')
 mycolorscheme2 <- c('blue', 'red', 'darkgreen')
-mycolorscheme3 <- c('#e70300', '#00279a', '#009500', '#ffe200', '#722ab5')
+mycolorscheme3 <- c('#e70300', '#00279a', '#009500', '#722ab5', '#ffe200')
 
 ################################################################################
 
