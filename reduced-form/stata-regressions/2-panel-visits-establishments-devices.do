@@ -31,17 +31,20 @@ drop if _merge == 2
 * Generate restaurant id
 egen id = group(rest_id)
 
+reghdfe raw_visit_counts est_in_cbg devices_in_cbg, absorb(id ct#year#month) vce(cluster ct)
+reghdfe raw_visit_counts rest_open est_in_cbg devices_in_cbg, absorb(id ct#year#month) vce(cluster ct) 
 reghdfe raw_visit_counts rest_open devices_in_cbg naics*, absorb(id ct#year#month) vce(cluster ct) 
 
-reghdfe raw_visit_counts est_in_cbg devices_in_cbg, absorb(id ct#year#month) vce(cluster ct) 
+* Repeat analysis for urban locations only
+drop if missing(cbsa)
 
-* Regression with establishment in cbg and devices in cbg as the independent
-* variable
 reghdfe raw_visit_counts est_in_cbg devices_in_cbg, absorb(id ct#year#month) vce(cluster ct)
+reghdfe raw_visit_counts rest_open est_in_cbg devices_in_cbg, absorb(id ct#year#month) vce(cluster ct) 
+reghdfe raw_visit_counts rest_open devices_in_cbg naics*, absorb(id ct#year#month) vce(cluster ct) 
 
+* Regression with establishment in cbg and devices in cbg as the independent variable
 gen devices_in_200_400_m = devices_in_400m - devices_in_200m
 gen devices_in_400_600_m = devices_in_600m - devices_in_400m
-
 * Regression with distance bands as independent variable
 reghdfe raw_visit_counts est_in_200m est_in_400m est_in_600m devices_in_200m devices_in_200_400_m devices_in_400_600_m, absorb(id ct#year#month) vce(cluster ct) 
 reghdfe raw_visit_counts est_in_200m est_in_400m est_in_600m devices_in_200m devices_in_200_400_m devices_in_400_600_m, absorb(id cbg#year#month) vce(cluster cbg) 
