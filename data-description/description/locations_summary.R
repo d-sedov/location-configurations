@@ -46,9 +46,11 @@ year = '2018'
 month = 'October'
 
 # My theme for plots 
-my_theme <- theme(legend.text = element_text(size = 14),
-                  legend.title = element_text(size= 16),
-                  plot.title = element_text(hjust = 0.5, size = 18)
+my_theme <- theme(legend.text = element_text(size = 6),
+                  legend.title = element_text(size = 8),
+                  plot.title = element_text(hjust = 0.5, size = 10),
+                  axis.text = element_text(size = 6),
+                  axis.title = element_text(size = 8)
 )
 mycolorscheme1 <- c('black', 'orange', 'purple')
 mycolorscheme2 <- c('blue', 'red', 'darkgreen')
@@ -194,5 +196,45 @@ cbgs_summary_table_latex <- gsub('\\end{tabular}\n',
                                  cbgs_summary_table_latex,
                                  fixed = TRUE)
 cbgs_summary_table_latex %>% cat(file = outfile)
+
+# Within CBSA distribution of restaurant availability
+percent_of_cbgs_with_restaurants <- cbgs %>%
+    replace_na(list(rest_number = 0)) %>%
+    mutate(rest_group = case_when(rest_number == 0 ~ '0',
+                                  rest_number %in% c(1,2) ~ '1-2', 
+                                  rest_number %in% c(3,4) ~ '3-4', 
+                                  rest_number %in% c(4,5) ~ '4-5', 
+                                  rest_number > 5 ~ '>5')) %>% 
+    group_by(cbsa, rest_group) %>% 
+    summarise(n = n()) %>% 
+    ungroup() %>% 
+    group_by(cbsa) %>% 
+    mutate(share = n / sum(n)) %>% 
+    select(-n) %>% 
+    pivot_wider(names_from = rest_group, 
+                values_from = share, 
+                values_fill = list(share = 0.0)) %>% 
+    pivot_longer(names_to = 'rest_group', 
+                 cols = -cbsa, 
+                 values_to = 'share')
+
+# Produce a plot
+location_rest_count <- ggplot(data = percent_of_cbgs_with_restaurants, 
+                              aes(y = rest_group, x = share, fill = rest_group, color = rest_group)) +
+    geom_density_ridges(alpha = 0.9, stat = "binline", bins = 30) + 
+    theme_bw(base_family = 'Times') + 
+    scale_fill_manual(guide = FALSE,
+                      values = mycolorscheme3) + 
+    scale_color_manual(guide = FALSE,
+                      values = mycolorscheme3) +
+    my_theme +
+    xlab('Share of CBGs within CBSAs') +
+    ylab('Restaurant number') 
+
+ggsave(filename = file.path(plots_folder_path, 'location_rest_count.pdf'),
+       device = cairo_pdf,
+       plot = location_rest_count,
+       width = 3.5,
+       height = 2.1)
 
 ################################################################################

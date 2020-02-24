@@ -45,9 +45,11 @@ tables_folder_path = '/Users/muser/dfolder/Research/urban/output/tables/descript
 plots_folder_path = '/Users/muser/dfolder/Research/urban/output/plots/descriptive'
 
 # My theme for plots 
-my_theme <- theme(legend.text = element_text(size = 14),
-                  legend.title = element_text(size= 16),
-                  plot.title = element_text(hjust = 0.5, size = 18)
+my_theme <- theme(legend.text = element_text(size = 6),
+                  legend.title = element_text(size = 8),
+                  plot.title = element_text(hjust = 0.5, size = 10),
+                  axis.text = element_blank(),
+                  axis.title = element_blank(),
 )
 mycolorscheme1 <- c('black', 'orange', 'purple')
 mycolorscheme2 <- c('blue', 'red', 'darkgreen')
@@ -130,6 +132,7 @@ p1 <- plot_usmap(regions = 'counties',
                aes(x = lon.1, y = lat.1, size = total),
                color = '#e70300', alpha = 0.5) +
     scale_size_continuous(name = 'Restaurants', 
+                          range = c(0.1, 2),
                           label = comma, 
                           breaks = c(1000, 5000, 10000, 20000),
                           guide = guide_legend(order = 1, reverse=T)) + 
@@ -140,13 +143,16 @@ p1 <- plot_usmap(regions = 'counties',
           ) + 
     theme(legend.position = c(0.85, 0.025), 
           legend.box = 'vertical',
-          legend.background = element_rect(colour = "black", size = 0.25)) +
+          legend.background = element_rect(colour = "black", size = 0.25),
+          legend.key.size = unit(0.075, 'inches'),
+          plot.margin = margin(0, 0, 0, 0, 'pt')) +
     my_theme  
 
 ggsave(file.path(plots_folder_path, 'geographical_distribution.pdf'), 
        plot = p1, 
        device = cairo_pdf, 
-       width = 12, 
-       height = 8)
+       width = 4.85, 
+       height = 3)
+embed_fonts(file.path(plots_folder_path, 'geographical_distribution.pdf'))
 
 ################################################################################

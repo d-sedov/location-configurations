@@ -47,10 +47,13 @@ year = '2018'
 month = 'October'
 
 # My theme for plots 
-my_theme <- theme(legend.text = element_text(size = 14),
-                  legend.title = element_text(size= 16),
-                  plot.title = element_text(hjust = 0.5, size = 18)
+my_theme <- theme(legend.text = element_text(size = 6),
+                  legend.title = element_text(size = 8),
+                  plot.title = element_text(hjust = 0.5, size = 10),
+                  axis.text = element_text(size = 6),
+                  axis.title = element_text(size = 8)
 )
+
 mycolorscheme1 <- c('black', 'orange', 'purple')
 mycolorscheme2 <- c('blue', 'red', 'darkgreen')
 mycolorscheme3 <- c('#e70300', '#00279a', '#009500', '#722ab5', '#ffe200')
@@ -217,14 +220,17 @@ top_brands <- top_brands %>%
 p1 <- ggplot(top_brands, aes(x = reorder(Brand, -N),
                             y = N, 
                             fill = Type)) + 
-    geom_bar(stat = 'identity', position = 'dodge', color = 'black') + 
+    geom_bar(stat = 'identity', 
+             position = 'dodge', 
+             width = 0.8) + 
     theme_bw(base_family = 'Times') +
     my_theme + 
-    theme(text = element_text(size = 12),
-          axis.text.x = element_text(size = 13,
-                                     angle = 45,
+    theme(axis.text.x = element_text(angle = 45,
                                      hjust = 1,
                                      vjust = 1)) +
+    theme(legend.key.size = unit(0.125, 'inches'),
+          legend.title=element_blank(),
+          plot.margin = margin(5, 0, 5, 2, 'pt')) +
     xlab('') +
     ylab('') +
     scale_y_continuous(label = comma) +
@@ -232,9 +238,10 @@ p1 <- ggplot(top_brands, aes(x = reorder(Brand, -N),
 
 ggsave(filename = file.path(plots_folder_path, 'top_brands.pdf'),
        device = cairo_pdf,
-       plot = p1, 
-       width = 10,
-       height = 6)
+       plot = p1,
+       width = 3.5,
+       height = 2.1)
+embed_fonts(file.path(plots_folder_path, 'top_brands.pdf'))
 
 ## Categories
 # Select top categories by restaurant quantity
@@ -255,14 +262,17 @@ top_categories <- top_categories %>%
 p2 <- ggplot(top_categories, aes(x = reorder(Category, -N),
                             y = N, 
                             fill = Type)) + 
-    geom_bar(stat = 'identity', position = 'dodge', color = 'black') + 
+    geom_bar(stat = 'identity', 
+             position = 'dodge',
+             width = 0.8) + 
     theme_bw(base_family = 'Times') +
-    my_theme + 
-    theme(text = element_text(size = 12),
-          axis.text.x = element_text(size = 13,
-                                     angle = 45,
+    my_theme +
+    theme(axis.text.x = element_text(angle = 45,
                                      hjust = 1,
                                      vjust = 1)) +
+    theme(legend.key.size = unit(0.125, 'inches'),
+          legend.title=element_blank(),
+          plot.margin = margin(5, 2, 5, 0, 'pt')) +
     xlab('') +
     ylab('') +
     scale_y_continuous(label = comma) +
@@ -270,8 +280,22 @@ p2 <- ggplot(top_categories, aes(x = reorder(Category, -N),
 
 ggsave(filename = file.path(plots_folder_path, 'top_categories.pdf'),
        device = cairo_pdf,
-       plot = p2, 
-       width = 10,
-       height = 6)
+       plot = p2,
+       width = 3.5,
+       height = 2.1)
+embed_fonts(file.path(plots_folder_path, 'top_categories.pdf'))
+
+p3 <- ggarrange(p1, 
+                p2, 
+                ncol = 2, nrow = 1, 
+                common.legend = TRUE, legend = 'right',
+                align = 'h')
+
+ggsave(filename = file.path(plots_folder_path, 'top_brands_categories.pdf'),
+       device = cairo_pdf,
+       plot = p3,
+       width = 4.85,
+       height = 2.5)
+embed_fonts(file.path(plots_folder_path, 'top_brands_categories.pdf'))
 
 ################################################################################

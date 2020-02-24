@@ -25,6 +25,7 @@ library(tidyr)
 library(ggplot2)
 library(scales)
 library(gtools)
+library(ggpubr)
 
 ################################################################################
 
@@ -48,10 +49,13 @@ year = '2018'
 month = 'October'
 
 # My theme for plots 
-my_theme <- theme(legend.text = element_text(size = 14),
-                  legend.title = element_text(size= 16),
-                  plot.title = element_text(hjust = 0.5, size = 18)
+my_theme <- theme(legend.text = element_text(size = 6),
+                  legend.title = element_text(size = 8),
+                  plot.title = element_text(hjust = 0.5, size = 10),
+                  axis.text = element_text(size = 6),
+                  axis.title = element_text(size = 8)
 )
+
 mycolorscheme1 <- c('black', 'orange', 'purple')
 mycolorscheme2 <- c('blue', 'red', 'darkgreen')
 mycolorscheme3 <- c('#e70300', '#00279a', '#009500', '#722ab5', '#ffe200')
@@ -143,22 +147,23 @@ p1 <- ggplot(data = cbgs,
                  color = rest_comp, 
                  fill = rest_comp)
             ) + 
-    geom_smooth() + 
-    stat_summary_bin(fun.y = 'mean', bins = 30, size = 1, geom = 'point') +
+    geom_smooth(size = 0.5) + 
+    stat_summary_bin(fun.y = 'mean', bins = 30, size = 0.25, geom = 'point') +
     scale_color_manual(name = 'Restaurant competition', values = mycolorscheme3) + 
     scale_fill_manual(name = 'Restaurant competition', values = mycolorscheme3) +
     theme_bw(base_family = 'Times') +
     my_theme + 
-    theme(text = element_text(size = 12)
-          ) +
+    theme(legend.key.size = unit(0.125, 'inches'),         
+          plot.margin = margin(5, 0, 5, 2, 'pt')) +
     xlab('Establishment number') +
     ylab('Average visits to restaurants')
 
 ggsave(filename = file.path(plots_folder_path, 'proximity_establishments.pdf'),
        device = cairo_pdf,
        plot = p1, 
-       width = 10,
-       height = 6)
+       width = 3.5,
+       height = 2.1)
+embed_fonts(file.path(plots_folder_path, 'proximity_establishments.pdf'))
 
 # Plot number devices residing vs average restaurant visits
 p2 <- ggplot(data = cbgs, 
@@ -167,21 +172,35 @@ p2 <- ggplot(data = cbgs,
                  color = rest_comp, 
                  fill = rest_comp)
              ) + 
-    geom_smooth() + 
-    stat_summary_bin(fun.y = 'mean', bins = 30, size = 1, geom = 'point') +
+    geom_smooth(size = 0.5) + 
+    stat_summary_bin(fun.y = 'mean', bins = 30, size = 0.25, geom = 'point') +
     scale_color_manual(name = 'Restaurant competition', values = mycolorscheme3) + 
     scale_fill_manual(name = 'Restaurant competition', values = mycolorscheme3) +
     theme_bw(base_family = 'Times') +
     my_theme + 
-    theme(text = element_text(size = 12)
-    ) +
+    theme(legend.key.size = unit(0.125, 'inches'),
+          plot.margin = margin(5, 2, 5, 0, 'pt')) + 
     xlab('Devices number') +
     ylab('Average visits to restaurants')
 
 ggsave(filename = file.path(plots_folder_path, 'proximity_devices.pdf'),
        device = cairo_pdf,
        plot = p2, 
-       width = 10,
-       height = 6)
+       width = 3.5,
+       height = 2.1)
+embed_fonts(file.path(plots_folder_path, 'proximity_devices.pdf'))
+
+p3 <- ggarrange(p1, 
+                p2 + theme(axis.title.y = element_blank()), 
+                ncol = 2, nrow = 1, 
+                common.legend = TRUE, legend = 'bottom',
+                align = 'v')
+
+ggsave(filename = file.path(plots_folder_path, 'proximity_establishments_devices.pdf'),
+       device = cairo_pdf,
+       plot = p3,
+       width = 4.85,
+       height = 2.5)
+embed_fonts(file.path(plots_folder_path, 'proximity_establishments_devices.pdf'))
 
 ################################################################################
