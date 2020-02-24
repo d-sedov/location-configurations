@@ -16,4 +16,4 @@ echo 'CDing to code directory...'
 cd /home/quser/project_dir/urban/code/reduced-form/stata-regressions
 
 echo 'Running Stata...'
-stata-mp -b do 2-panel-visits-establishments-devices.do
+stata-mp -b do 4-panel-visits-establishments-devices-open-close.do
