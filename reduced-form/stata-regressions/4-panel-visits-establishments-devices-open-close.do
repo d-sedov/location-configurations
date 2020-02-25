@@ -32,6 +32,6 @@ drop if _merge == 2
 * Generate restaurant id
 egen id = group(rest_id)
 
-reghdfe raw_visit_counts est_open rest_open devices_in_cbg, absorb(id ct#year#month) vce(cluster ct)
+reghdfe raw_visit_counts est_open rest_open devices_in_cbg, absorb(i.id i.ct#i.year#i.month) vce(cluster i.ct)
 
 log close
