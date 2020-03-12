@@ -155,7 +155,7 @@ p1 <- ggplot(data = cbgs,
     my_theme + 
     theme(legend.key.size = unit(0.125, 'inches'),         
           plot.margin = margin(5, 0, 5, 2, 'pt')) +
-    xlab('Establishment number') +
+    xlab('Establishments') +
     ylab('Average visits to restaurants')
 
 ggsave(filename = file.path(plots_folder_path, 'proximity_establishments.pdf'),
@@ -180,7 +180,7 @@ p2 <- ggplot(data = cbgs,
     my_theme + 
     theme(legend.key.size = unit(0.125, 'inches'),
           plot.margin = margin(5, 2, 5, 0, 'pt')) + 
-    xlab('Devices number') +
+    xlab('Devices') +
     ylab('Average visits to restaurants')
 
 ggsave(filename = file.path(plots_folder_path, 'proximity_devices.pdf'),
@@ -199,8 +199,8 @@ p3 <- ggarrange(p1,
 ggsave(filename = file.path(plots_folder_path, 'proximity_establishments_devices.pdf'),
        device = cairo_pdf,
        plot = p3,
-       width = 4.85,
-       height = 2.5)
+       width = 4.25,
+       height = 2.25)
 embed_fonts(file.path(plots_folder_path, 'proximity_establishments_devices.pdf'))
 
 ################################################################################
