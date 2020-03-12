@@ -16,12 +16,12 @@
 
 *************************** Settings, preimport data  **************************
 
-log using "/home/quser/project_dir/urban/docs/panel-interaction-regressions", text replace
+log using "/home/quser/project_dir/urban/docs/panel-interaction-regressions-3-20", text replace
 
 * Import the conservatively labeled changes in the cbg establishment scene
-import delimited /home/quser/project_dir/data/cbg_establishments_over_time_conservative.csv
-tempfile cbg_est_cons
-save `cbg_est_cons'
+import delimited /home/quser/project_dir/data/cbg_establishments_over_time_conservative_3_20.csv
+tempfile cbg_est_cons_3_20
+save `cbg_est_cons_3_20'
 clear
 
 * Import the dirtyly labeled changed in the cbg establishment scene
@@ -101,7 +101,7 @@ tostring rating, generate(rating_string)
 encode rating_string, generate(rating_ind)
 
 * Merge with dirty changes
-merge m:1 cbg year month using `cbg_est_cons'
+merge m:1 cbg year month using `cbg_est_cons_3_20'
 drop if _merge == 2
 
 * Generate restaurant id
@@ -123,6 +123,13 @@ quietly estadd beta
 estimates store model_cons_rating
 estout model_cons_rating, cells((beta(star label(Beta) fmt(3)) sd) se(par)) drop(_cons) stats(N r2 vce ymean ysd, fmt(0 2)) legend
 
+reghdfe raw_visit_counts total_est c.rest#c.total_est devices_in_cbg, absorb(id ct#year#month) vce(cluster ct)
+quietly estadd sd
+quietly estadd ysumm
+quietly estadd beta
+estimates store model_cons_rest_comp
+estout model_cons_rest_comp, cells((beta(star label(Beta) fmt(3)) sd) se(par)) drop(_cons) stats(N r2 vce ymean ysd, fmt(0 2)) legend
+
 * Repeat analysis for urban locations only
 drop if missing(cbsa)
 
@@ -139,6 +146,13 @@ quietly estadd ysumm
 quietly estadd beta
 estimates store urban_model_cons_rating
 estout urban_model_cons_rating, cells((beta(star label(Beta) fmt(3)) sd) se(par)) drop(_cons) stats(N r2 vce ymean ysd, fmt(0 2)) legend
+
+reghdfe raw_visit_counts total_est c.rest#c.total_est devices_in_cbg, absorb(id ct#year#month) vce(cluster ct)
+quietly estadd sd
+quietly estadd ysumm
+quietly estadd beta
+estimates store urban_model_cons_rest_comp
+estout urban_model_cons_rest_comp, cells((beta(star label(Beta) fmt(3)) sd) se(par)) drop(_cons) stats(N r2 vce ymean ysd, fmt(0 2)) legend
 
 clear
 
