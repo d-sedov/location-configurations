@@ -102,15 +102,30 @@ cbgs <- cbgs %>%
            est_area = replace(est_area,
                               which(is.na(est_area)),
                               0),
-           area_km2 = area_m2 / 1000000
+           area_km2 = area_m2 / 1000000,
+           number_devices_residing = replace(number_devices_residing,
+                                             which(is.na(number_devices_residing)),
+                                             0)
     )
+
+# Import demographics info
+census_cbg_extract <- read_csv(file.path(input_folder_path, 'census_cbg_extract.csv'),
+                               col_types = cols_only(cbg_id = col_guess(),
+                                                     median_hh_income = col_guess(), 
+                                                     somecoll_over25y_pop = col_guess()
+                                                     )
+                               )
+
+cbgs <- cbgs %>% left_join(census_cbg_extract, by = c('cbg' = 'cbg_id'))
 
 # Select variables for summary statistics construction
 vars <- list('area_km2',
              'rest_number',
              'rest_area',
              'est_number',
-             'est_area'
+             'est_area',
+             'number_devices_residing',
+             'median_hh_income'
 )
 
 # Variable names for presentation
@@ -118,7 +133,9 @@ vars_names <- c('Area (sq. km.)',
                 'Restaurant number', 
                 'Total rest. area (sq. m.)',
                 'Establishment number', 
-                'Total estab. area (sq. m.)'
+                'Total estab. area (sq. m.)',
+                'Devices',
+                'Median HH income'
                 )
 
 cbgs_urban <- cbgs %>% filter(urban)
@@ -174,7 +191,7 @@ cbgs_summary_table_latex <- kable(cbgs_summary_table,
                                   digits = 2,
                                   booktabs = TRUE) %>%
     row_spec(row = 0, bold = TRUE) %>%
-    pack_rows(index = c('Urban' = 5, 'Rural' = 5)) %>%
+    pack_rows(index = c('Urban' = 7, 'Rural' = 7)) %>%
     add_footnote(paste('\\scriptsize{\\emph{Note}: Subset of data for',
                        month,
                        paste0(year, '.}')),

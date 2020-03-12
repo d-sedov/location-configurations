@@ -138,6 +138,7 @@ restaurants_by_cbg <- restaurants %>%
                             na.rm = T))
 
 # Replace missing values with 0 (no restaurants / establishments in cbgs)
+# Replace missing values with 0 (no restaurants / establishments in cbgs)
 cbgs <- cbgs %>% 
     mutate(urban = !is.na(cbsa),
            rest_number = replace(rest_number, 
@@ -152,7 +153,10 @@ cbgs <- cbgs %>%
            est_area = replace(est_area,
                               which(is.na(est_area)),
                               0),
-           area_km2 = area_m2 / 1000000
+           area_km2 = area_m2 / 1000000,
+           number_devices_residing = replace(number_devices_residing,
+                                             which(is.na(number_devices_residing)),
+                                             0)
     )
 
 # Select urban cbgs
@@ -195,7 +199,7 @@ p1e <- ggplot(data = cbgs_price_categories,
               aes(x = est_number,
                   y = share, 
                   color = price)) + 
-    geom_smooth(size = 0.5, se = FALSE) +
+    geom_smooth(size = 0.3, se = FALSE) +
     scale_color_manual(name = 'Price category', 
                        values = mycolorscheme3,
                        labels = c('price1' = '$',
@@ -206,9 +210,9 @@ p1e <- ggplot(data = cbgs_price_categories,
                                   )) +
     theme_bw(base_family = 'Times') +
     my_theme + 
-    theme(legend.key.size = unit(0.125, 'inches'),
+    theme(legend.key.size = unit(0.1, 'inches'),
           plot.margin = margin(5, 0, 5, 2, 'pt')) +
-    xlab('Establishment number') +
+    xlab('Establishments') +
     ylab('Share of restaurants') +
     xlim(x_limits_e) + 
     coord_cartesian(xlim = x_limits_e, 
@@ -225,7 +229,7 @@ p1d <- ggplot(data = cbgs_price_categories,
               aes(x = number_devices_residing,
                   y = share,
                   color = price)) + 
-    geom_smooth(size = 0.5, se = FALSE) +
+    geom_smooth(size = 0.3, se = FALSE) +
     scale_color_manual(name = 'Price category', 
                        values = mycolorscheme3,
                        labels = c('price1' = '$',
@@ -238,7 +242,7 @@ p1d <- ggplot(data = cbgs_price_categories,
     my_theme +
     theme(legend.key.size = unit(0.125, 'inches'),
           plot.margin = margin(5, 0, 5, 2, 'pt'))+
-    xlab('Devices number') +
+    xlab('Devices') +
     ylab('Share of restaurants') +
     xlim(x_limits_d) + 
     coord_cartesian(xlim = x_limits_d, 
@@ -267,16 +271,16 @@ embed_fonts(file.path(plots_folder_path, 'establishments_devices_prices.pdf'))
 p2e <- ggplot(data = cbgs,
               aes(x = est_number,
                   y = rating)) +
-    geom_smooth(size = 0.5, color = mycolorscheme3[2], fill = mycolorscheme3[2]) +
+    geom_smooth(size = 0.3, color = mycolorscheme3[2], fill = mycolorscheme3[2]) +
     stat_summary_bin(fun.y = 'mean', 
                      bins = 30, 
-                     size = 0.25, 
+                     size = 0.15, 
                      geom = 'point') +
     theme_bw(base_family = 'Times') +
     my_theme +
     theme(legend.key.size = unit(0.125, 'inches'),
           plot.margin = margin(5, 0, 5, 2, 'pt')) +
-    xlab('Establishment number') +
+    xlab('Establishments') +
     ylab('Average rating') +
     xlim(x_limits_e) + 
     coord_cartesian(xlim = x_limits_e, ylim = c(3.25, 3.7))
@@ -291,16 +295,16 @@ embed_fonts(file.path(plots_folder_path, 'establishments_rating.pdf'))
 p2d <- ggplot(data = cbgs,
               aes(x = number_devices_residing,
                   y = rating)) +
-    geom_smooth(size = 0.5, color = mycolorscheme3[2], fill = mycolorscheme3[2]) +
+    geom_smooth(size = 0.3, color = mycolorscheme3[2], fill = mycolorscheme3[2]) +
     stat_summary_bin(fun.y = 'mean', 
                      bins = 30, 
-                     size = 0.25, 
+                     size = 0.15, 
                      geom = 'point') +
     theme_bw(base_family = 'Times') +
     my_theme +
     theme(legend.key.size = unit(0.125, 'inches'),
           plot.margin = margin(5, 0, 5, 2, 'pt')) +
-    xlab('Devices number') +
+    xlab('Devices') +
     ylab('Average rating') +
     xlim(x_limits_d) + 
     coord_cartesian(xlim = x_limits_d, ylim = c(3.25, 3.7))
@@ -324,23 +328,24 @@ ggsave(filename = file.path(plots_folder_path, 'establishments_devices_rating.pd
        height = 2.5)
 embed_fonts(file.path(plots_folder_path, 'establishments_devices_rating.pdf'))
 
+y_limits_categories <- c(1.85, 2.05)
 # Establishments - categories plot
 p3e <- ggplot(data = cbgs,
               aes(x = est_number,
                   y = n_categories)) +
-    geom_smooth(size = 0.5, color = mycolorscheme3[2], fill = mycolorscheme3[2]) +
+    geom_smooth(size = 0.3, color = mycolorscheme3[2], fill = mycolorscheme3[2]) +
     stat_summary_bin(fun.y = 'mean', 
                      bins = 30, 
-                     size = 0.25, 
+                     size = 0.15, 
                      geom = 'point') +
     theme_bw(base_family = 'Times') +
     my_theme +
     theme(legend.key.size = unit(0.125, 'inches'),
           plot.margin = margin(5, 0, 5, 2, 'pt')) +
-    xlab('Establishment number') +
+    xlab('Establishments') +
     ylab('Average # categories') +
     xlim(x_limits_e) + 
-    coord_cartesian(xlim = x_limits_e)
+    coord_cartesian(xlim = x_limits_e, ylim = y_limits_categories)
 ggsave(filename = file.path(plots_folder_path, 'establishments_categories.pdf'),
        device = cairo_pdf,
        plot = p3e, 
@@ -352,19 +357,19 @@ embed_fonts(file.path(plots_folder_path, 'establishments_categories.pdf'))
 p3d <- ggplot(data = cbgs,
               aes(x = number_devices_residing,
                   y = n_categories)) +
-    geom_smooth(size = 0.5, color = mycolorscheme3[2], fill = mycolorscheme3[2]) +
+    geom_smooth(size = 0.3, color = mycolorscheme3[2], fill = mycolorscheme3[2]) +
     stat_summary_bin(fun.y = 'mean', 
                      bins = 30, 
-                     size = 0.25, 
+                     size = 0.15, 
                      geom = 'point') +
     theme_bw(base_family = 'Times') +
     my_theme +
     theme(legend.key.size = unit(0.125, 'inches'),
           plot.margin = margin(5, 0, 5, 2, 'pt')) +
-    xlab('Number devices residing') +
+    xlab('Devices') +
     ylab('Average # categories') +
     xlim(x_limits_d) + 
-    coord_cartesian(xlim = x_limits_d)
+    coord_cartesian(xlim = x_limits_d, ylim = y_limits_categories)
 ggsave(filename = file.path(plots_folder_path, 'devices_categories.pdf'),
        device = cairo_pdf,
        plot = p3d, 
@@ -385,5 +390,57 @@ ggsave(filename = file.path(plots_folder_path, 'establishments_devices_categorie
        width = 4.85,
        height = 2.5)
 embed_fonts(file.path(plots_folder_path, 'establishments_devices_categories.pdf'))
+
+p_all <- ggarrange(p2e + theme(axis.title.x = element_blank(), 
+                               axis.text.x = element_blank(),
+                               plot.margin = unit(c(0,0,-2,0), 'lines')) + 
+                       ylab('Ave. rating'),
+                   p2d + theme(axis.title.x = element_blank(), 
+                               axis.text.x = element_blank(), 
+                               axis.title.y = element_blank(),
+                               axis.text.y = element_blank(),
+                               plot.margin = unit(c(-2,0,-2,0), 'lines')) +
+                       ylab('Ave. rating'),
+                   p3e + theme(axis.title.x = element_blank(), 
+                               axis.text.x = element_blank(),
+                               plot.margin = unit(c(-2,0,-2,0), 'lines')) +
+                       ylab('Ave. categ. #'),
+                   p3d + theme(axis.title.x = element_blank(), 
+                               axis.text.x = element_blank(),
+                               axis.title.y = element_blank(),
+                               axis.text.y = element_blank(),
+                               plot.margin = unit(c(-2,0,-2,0), 'lines')) + 
+                       ylab('Ave. categ. #'),
+                   p1e + theme(legend.position = 'none',
+                               axis.title.x = element_blank(),
+                               plot.margin = unit(c(-2,0,0,0), 'lines')) +
+                       ylab('Rest. share'), 
+                   p1d + theme(axis.title.y = element_blank(),
+                               axis.text.y = element_blank(),
+                               axis.title.x = element_blank(),
+                               legend.position = c(-0.105, 0.5),
+                               legend.text = element_text(size = 4),
+                               legend.title = element_blank(),
+                               legend.direction = 'vertical',
+                               legend.background=element_blank(),
+                               legend.key.size = unit(0.05, 'inches'),
+                               plot.margin = unit(c(-2,0,0,0), 'lines')) +
+                       ylab('Rest. share'),
+                   ncol = 2, nrow = 3, 
+                   common.legend = FALSE,
+                   align = 'hv')
+
+axis1 <- textGrob('Establishments', gp = gpar(fontsize = 8, fontfamily = 'Times'))
+axis2 <- textGrob('Devices', gp = gpar(fontsize = 8, fontfamily = 'Times'))
+p_all_final <- p_all + theme(plot.margin = unit(c(0,0,0.75,0), 'lines')) +
+    annotation_custom(grob = axis1, xmin = 0.285, xmax = 0.285, ymin = -0.02, ymax = -0.02) + 
+    annotation_custom(grob = axis2, xmin = 0.785, xmax = 0.785, ymin = -0.02, ymax = -0.02)
+
+ggsave(filename = file.path(plots_folder_path, 'sorting_all_final.pdf'),
+       device = cairo_pdf,
+       plot = p_all_final, 
+       width = 4.25,
+       height = 3)
+embed_fonts(file.path(plots_folder_path, 'sorting_all_final.pdf'))
 
 ################################################################################

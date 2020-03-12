@@ -17,6 +17,9 @@
 ################################## Libraries ###################################
 
 library(readr)
+library(dplyr)
+library(ggplot)
+library(ggpubr)
 
 ################################################################################
 
@@ -84,9 +87,9 @@ p1 <- ggplot(panel_regression_naics %>%
              aes(x = reorder(Industry, -estimate),
                  y = estimate,
                  fill = estimate < 0,
-                 alpha = p_value < 0.15)) + 
+                 alpha = p_value <= 0.10)) + 
     geom_bar(stat = 'identity', 
-             width = 0.65) + 
+             width = 0.5) + 
     theme_bw(base_family = 'Times') +
     my_theme +
     theme(axis.text.x = element_text(angle = 30,
@@ -101,8 +104,8 @@ p1 <- ggplot(panel_regression_naics %>%
     ylab('Coefficient') +
     scale_y_continuous(label = comma) + 
     scale_fill_manual(values = c('#e70300','#00279a'), 
-                      labels = c('Pos., sig. at 15%', 
-                                 'Neg., insig. at 15%'), 
+                      labels = c('Pos., sig. at 10%', 
+                                 'Neg., insig. at 10%'), 
                       guide = guide_legend(override.aes = list(alpha = c(1.0, 0.3)))) +
     scale_alpha_discrete(range = c(0.3, 1.0), guide = FALSE)
 
@@ -110,12 +113,12 @@ ggsave(filename = file.path(plots_folder_path, 'naics_coefficients.pdf'),
        device = cairo_pdf,
        plot = p1, 
        width = 3.5,
-       height = 2.5)
+       height = 2.45)
 
 p_p_e <- ggplot(data = panel_regression_price %>% filter(type == 'est')) + 
     geom_pointrange(aes(x = price, y = estimate, ymin = ci_l, ymax = ci_u), 
                     colour = mycolorscheme3[1], 
-                    size = 0.1) + 
+                    size = 0.075) + 
     geom_hline(yintercept = 0,
                size = 0.3, 
                linetype = 'dotted') + 
@@ -133,7 +136,7 @@ p_p_e <- ggplot(data = panel_regression_price %>% filter(type == 'est')) +
 p_p_d <- ggplot(data = panel_regression_price %>% filter(type == 'dev')) + 
     geom_pointrange(aes(x = price, y = estimate, ymin = ci_l, ymax = ci_u), 
                     colour = mycolorscheme3[2], 
-                    size = 0.1) + 
+                    size = 0.075) + 
     geom_hline(yintercept = 0,
                size = 0.3, 
                linetype = 'dotted') + 
@@ -153,13 +156,13 @@ p_p <- ggarrange(p_p_e, p_p_d + theme(axis.title.y = element_blank()), ncol = 2,
 ggsave(filename = file.path(plots_folder_path, 'price_interactions.pdf'),
        device = cairo_pdf,
        plot = p_p, 
-       width = 3.75,
-       height = 2.0)
+       width = 3.5,
+       height = 1.85)
 
 p_r_e <- ggplot(data = panel_regression_rating %>% filter(type == 'est')) + 
     geom_pointrange(aes(x = rating, y = estimate, ymin = ci_l, ymax = ci_u), 
                     colour = mycolorscheme3[1], 
-                    size = 0.1) + 
+                    size = 0.075) + 
     geom_hline(yintercept = 0,
                size = 0.3, 
                linetype = 'dotted') + 
@@ -177,7 +180,7 @@ p_r_e <- ggplot(data = panel_regression_rating %>% filter(type == 'est')) +
 p_r_d <- ggplot(data = panel_regression_rating %>% filter(type == 'dev')) + 
     geom_pointrange(aes(x = rating, y = estimate, ymin = ci_l, ymax = ci_u), 
                     colour = mycolorscheme3[2], 
-                    size = 0.1) + 
+                    size = 0.075) + 
     geom_hline(yintercept = 0,
                size = 0.3, 
                linetype = 'dotted') + 
@@ -197,7 +200,7 @@ p_r <- ggarrange(p_r_e, p_r_d + theme(axis.title.y = element_blank()), ncol = 2,
 ggsave(filename = file.path(plots_folder_path, 'rating_interactions.pdf'),
        device = cairo_pdf,
        plot = p_r, 
-       width = 3.75,
-       height = 2.0)
+       width = 3.5,
+       height = 1.85)
 
 ################################################################################
