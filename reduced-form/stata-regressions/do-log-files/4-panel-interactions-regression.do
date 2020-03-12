@@ -20,12 +20,14 @@ log using "/home/quser/project_dir/urban/docs/panel-interaction-regressions-3-20
 
 * Import the conservatively labeled changes in the cbg establishment scene
 import delimited /home/quser/project_dir/data/cbg_establishments_over_time_conservative_3_20.csv
+* import delimited /home/quser/project_dir/urban/data/output/reduced-form/cbg_establishments_over_time_conservative_3_20.csv
 tempfile cbg_est_cons_3_20
 save `cbg_est_cons_3_20'
 clear
 
 * Import the dirtyly labeled changed in the cbg establishment scene
 import delimited /home/quser/project_dir/data/cbg_categs.csv
+* import delimited /home/quser/project_dir/urban/data/output/reduced-form/cbg_categs.csv
 tempfile cbg_est_simple 
 save `cbg_est_simple'
 clear

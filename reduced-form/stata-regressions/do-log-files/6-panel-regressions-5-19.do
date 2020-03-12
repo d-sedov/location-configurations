@@ -20,12 +20,14 @@ log using "/home/quser/project_dir/urban/docs/panel-regressions-5-19", text repl
 
 * Import the conservatively labeled changes in the cbg establishment scene
 import delimited /home/quser/project_dir/data/cbg_establishments_over_time_conservative_5_19.csv
+* import delimited /home/quser/project_dir/urban/data/output/reduced-form/cbg_establishments_over_time_conservative_5_19.csv
 tempfile cbg_est_cons_5_19
 save `cbg_est_cons_5_19'
 clear
 
 * Import the dirtyly labeled changed in the cbg establishment scene
 import delimited /home/quser/project_dir/data/cbg_categs.csv
+* import delimited /home/quser/project_dir/urban/data/output/reduced-form/cbg_categs.csv
 tempfile cbg_est_simple 
 save `cbg_est_simple'
 clear
@@ -37,6 +39,7 @@ clear
 
 * Import main data with restaurant visits
 import delimited /home/quser/project_dir/data/full_monthly_panel.csv
+* import delimited /home/quser/project_dir/urban/data/output/reduced-form/full_monthly_panel.csv
 
 * Merge with dirty changes
 merge m:1 cbg year month using `cbg_est_simple'

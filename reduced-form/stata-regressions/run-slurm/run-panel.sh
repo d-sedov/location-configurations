@@ -13,8 +13,7 @@ module purge all
 module load stata/15
 
 echo 'CDing to code directory...'
-cd /home/quser/project_dir/urban/code/reduced-form/stata-regressions
+cd /home/quser/project_dir/urban/code/reduced-form/stata-regressions/do-log-files
 
 echo 'Running Stata...'
-stata -b do 2-cross-section-regressions.do
-
+stata-mp -b do 3-panel-regressions.do

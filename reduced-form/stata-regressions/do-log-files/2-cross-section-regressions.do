@@ -19,6 +19,8 @@ log using "/home/quser/project_dir/urban/docs/cross-section-regressions", text r
 
 * Import data
 use /home/quser/project_dir/data/restaurants_cross_section
+* Within-project data-location
+* use /home/quser/project_dir/urban/data/output/reduced-form/restaurants_cross_section
 
 * Numeric to factor variables
 tostring price, generate(price_string)
