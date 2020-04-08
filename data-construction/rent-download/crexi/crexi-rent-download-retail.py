@@ -1,14 +1,13 @@
 ################################################################################ 
 ################################################################################
 #
-# FILE: crexi-rent-download.py
+# FILE: crexi-rent-download-retail.py
 #
 # BY: Dmitry Sedov 
 #
 # CREATED: Thu Mar 26 2020
 #
-# DESC: This code downloads zip-code level commercial rent data from crexi
-#       specifically for areas with no restaurants in SG data.
+# DESC: This code downloads zip-code level commercial rent data from crexi.
 #
 # EXEC:
 #      
@@ -25,7 +24,6 @@ import aiohttp
 import json
 import os
 import time
-import zipcodes
 
 import pandas as pd
 import sqlalchemy as db
@@ -45,7 +43,7 @@ GROUP BY
     zip_code;
 """
 
-output_folder_path = '/home/user/projects/urban/data/input/Rent/Crexi/'
+output_folder_path = '/home/user/projects/urban/data/input/Rent/Crexi/retail'
 
 url = 'https://api-lease.crexi.com/assets?'
 params = {'types': 'Retail',
@@ -107,20 +105,18 @@ if __name__ == '__main__':
     connection = engine.connect()
     zip_codes_table = pd.read_sql(get_zips_statement, engine)
     engine.dispose()
+    print(f'{zip_codes_table.shape[0]} zip codes in total.')
 
     print('Constructing zip code list...')
-    rest_zips = set(zip_codes_table['zip_code'].tolist())
-    all_zip_codes = {z['zip_code'] for z in zipcodes.list_all()}
-    zips_to_request = all_zip_codes - rest_zips
-    zips_to_request = list(zips_to_request)
-    print(f'List of {len(zips_to_request)} constructed.')
+    all_zips = sorted(zip_codes_table['zip_code'].tolist())
+    print(f'List of {len(all_zips)} constructed.')
 
     time.sleep(5.5) 
 
     print('Running async requests...')
     start_time = time.time()
     loop = asyncio.get_event_loop()
-    results = loop.run_until_complete(run(zips_to_request))
+    results = loop.run_until_complete(run(all_zips))
     print('--- %s seconds ---' % (time.time() - start_time))
 
 ################################################################################
