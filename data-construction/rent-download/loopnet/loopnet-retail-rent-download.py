@@ -39,8 +39,8 @@ url = 'https://www.loopnet.com/zip/{zip_code}_retail-space-for-lease/{page_numbe
 
 user_agent = 'Moilla/5.0 (Macintosh; Intel Mac OS X 10_13_6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/80.0.3987.132 Safari/537.36'
 
-output_folder_path = '/home/user/projects/urban/data/input/Rent/loopnet/retail'
-code_folder_path = '/home/user/projects/urban/code/data-construction/rent-download/loopnet'
+output_folder_path = '/home/quser/project_dir/urban/data/input/Rent/loopnet/retail'
+code_folder_path = '/home/quser/project_dir/urban/code/data-construction/rent-download/loopnet'
 
 headers = {'User-Agent': user_agent}
 
@@ -99,7 +99,7 @@ async def get_page(session, sem, zip_code, page_number):
 async def run(func, tasks):
     results = []
     # Bound on the number of simultaneous requests placed
-    sem = asyncio.Semaphore(40)
+    sem = asyncio.Semaphore(10)
     async with aiohttp.ClientSession(raise_for_status = True) as session:
         async with sem:
             for task in tasks:
