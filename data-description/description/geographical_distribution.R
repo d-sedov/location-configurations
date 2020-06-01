@@ -155,4 +155,44 @@ ggsave(file.path(plots_folder_path, 'geographical_distribution.pdf'),
        height = 3)
 embed_fonts(file.path(plots_folder_path, 'geographical_distribution.pdf'))
 
+
+# Plot without establishment count
+urban_establishments_by_county <- urban_establishments_by_county %>% 
+    mutate(s = 1)
+p2 <- plot_usmap(regions = 'counties', 
+                 data = urban_establishments_by_county,
+                 size = 0.025,
+                 linetype = 0,
+                 color = 'white',
+                 values = 's') + 
+    scale_fill_continuous(high = mycolorscheme3[2], low = mycolorscheme3[2], 
+                      guide = FALSE, na.value = '#E5E5E5') + 
+    geom_point(data = restaurants_by_county %>% filter(lon.1 < quantile(lon.1, 0.99, na.rm = T) 
+                                                       & lon.1 > quantile(lon.1, 0.01, na.rm = T)),
+               aes(x = lon.1, y = lat.1, size = total),
+               color = mycolorscheme3[1], alpha = 0.75) +
+    scale_size_continuous(name = 'Restaurants', 
+                          range = c(0.1, 2),
+                          label = comma, 
+                          breaks = c(1000, 5000, 10000, 20000),
+                          guide = guide_legend(order = 1, reverse=T)) + 
+    theme(panel.background = element_rect(color = 'black',
+                                          fill = 'white',
+                                          linetype = 0),
+          text = element_text(family="Times")
+    ) + 
+    theme(legend.position = c(0.85, 0.025), 
+          legend.box = 'vertical',
+          legend.background = element_rect(colour = "black", size = 0.25),
+          legend.key.size = unit(0.075, 'inches'),
+          plot.margin = margin(0, 0, 0, 0, 'pt')) +
+    my_theme  
+
+ggsave(file.path(plots_folder_path, 'geographical_distribution_restaurants_only.pdf'), 
+       plot = p2, 
+       device = cairo_pdf, 
+       width = 4.85, 
+       height = 3)
+embed_fonts(file.path(plots_folder_path, 'geographical_distribution_restaurants_only.pdf'))
+
 ################################################################################

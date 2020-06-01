@@ -24,6 +24,8 @@ library(jsonlite)
 library(tidyr)
 library(ggplot2)
 library(scales)
+library(extrafont)
+library(ggpubr)
 
 ################################################################################
 
@@ -43,8 +45,8 @@ tables_folder_path = '/Users/muser/dfolder/Research/urban/output/tables/descript
 plots_folder_path = '/Users/muser/dfolder/Research/urban/output/plots/descriptive'
 
 # Visits data vintage
-year = '2018'
-month = 'October'
+year = '2019'
+month = 'July'
 
 # My theme for plots 
 my_theme <- theme(legend.text = element_text(size = 6),
@@ -88,6 +90,9 @@ simple_summary <- function(data, var) {
 
 # Import data
 restaurants <- read_csv(file.path(input_folder_path, 'data_restaurants.csv'))
+census_population <- read_csv(file.path(input_folder_path, 
+                                        'cbg_population.csv')) %>% 
+    rename(cbg = home_cbg)
 
 # Set price to missing if it is -1
 restaurants <- restaurants %>% mutate(price = ifelse(price == -1, NA, price))
@@ -297,5 +302,48 @@ ggsave(filename = file.path(plots_folder_path, 'top_brands_categories.pdf'),
        width = 4.85,
        height = 2.5)
 embed_fonts(file.path(plots_folder_path, 'top_brands_categories.pdf'))
+
+# Distribution of restaurant count, cuisine categories across ZIP codes
+restaurants_distribution <- restaurants %>% 
+    filter(!is.na(category1)) %>% filter(!is.na(cbsa)) %>%
+    group_by(cbg) %>% 
+    summarise(n = n(), 
+              different_categories = n_distinct(category1)) %>%
+    left_join(census_population)
+
+restaurant_per_thousand <- ggplot(data = restaurants_distribution,
+                                  aes(x = n / (total_pop / 1000)) ) + 
+    geom_histogram(color = mycolorscheme3[1], fill = mycolorscheme3[1]) +
+    theme_bw(base_family = 'Times') + 
+    my_theme +
+    xlab('Restaurants per 1,000 people') +
+    ylab('CBG count') + 
+    theme(plot.margin = unit(c(0,0.8,0,0.2), "lines")) +
+    xlim(0, 20)
+
+    
+categories_per_thousand <- ggplot(data = restaurants_distribution %>% filter(n > 1),
+                                  aes(x = different_categories / (total_pop / 1000))) +
+    geom_histogram(color = mycolorscheme3[2], fill = mycolorscheme3[2]) +
+    theme_bw(base_family = 'Times') + 
+    my_theme +
+    xlab('Cuisine categories per 1,000 people') +
+    ylab('CBG count') + 
+    theme(plot.margin = unit(c(0,0.8,0,0.2), "lines")) + 
+    xlim(0, 20)
+
+plot_both <- ggarrange(restaurant_per_thousand, 
+                       categories_per_thousand + theme(axis.title.y = element_blank()), 
+                       ncol = 2, nrow = 1, 
+                       common.legend = TRUE,
+                       align = 'v')
+
+ggsave(filename = file.path(plots_folder_path, 'restaurant_distribution.pdf'),
+       device = cairo_pdf,
+       plot = plot_both,
+       width = 5.1,
+       height = 1.75)
+embed_fonts(file.path(plots_folder_path, 'restaurant_distribution.pdf'))
+
 
 ################################################################################

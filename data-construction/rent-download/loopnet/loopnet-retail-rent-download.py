@@ -27,8 +27,6 @@ import random
 
 import pandas as pd
 
-import zipcodes
-
 from bs4 import BeautifulSoup
 
 ################################################################################
@@ -39,8 +37,9 @@ url = 'https://www.loopnet.com/zip/{zip_code}_retail-space-for-lease/{page_numbe
 
 user_agent = 'Moilla/5.0 (Macintosh; Intel Mac OS X 10_13_6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/80.0.3987.132 Safari/537.36'
 
-output_folder_path = '/home/quser/project_dir/urban/data/input/Rent/loopnet/retail'
-code_folder_path = '/home/quser/project_dir/urban/code/data-construction/rent-download/loopnet'
+input_folder_path = '/Users/muser/dfolder/Research/urban/data/misc/loopnet'
+output_folder_path = '/Users/muser/dfolder/Research/urban/data/input/Rent/loopnet/retail'
+code_folder_path = '/Users/muser/dfolder/Research/urban/code/data-construction/rent-download/loopnet'
 
 headers = {'User-Agent': user_agent}
 
@@ -106,18 +105,16 @@ async def run(func, tasks):
                 results.append(asyncio.ensure_future(func(session, sem, *task)))
             return await asyncio.gather(*results)
 
-################################################################################
 
-################################## Main code ###################################
-
-if __name__ == '__main__':
+def process_zip_part(name):
 
     print('Working on first pages for each zip code.')
     time.sleep(2)
 
     # Construct zip codes
-    print('Getting zip codes.')
-    all_zip_codes = sorted(list({z['zip_code'] for z in zipcodes.list_all()}))
+    print(f'Getting zip codes from {name}.')
+    part_zip_table = pd.read_csv(os.path.join(input_folder_path, name), dtype = {'zip_code': str})
+    all_zip_codes = part_zip_table['zip_code'].tolist()
     all_zip_codes = [(z, 1) for z in all_zip_codes]
     print(f'{len(all_zip_codes)} tasks in total.')
 
@@ -139,5 +136,16 @@ if __name__ == '__main__':
     loop = asyncio.get_event_loop()
     end_results = loop.run_until_complete(run(get_page, results))
     print('--- %s seconds ---' % (time.time() - start_time))
+
+    part_zip_table['downloaded'] = 1
+    part_zip_table.to_csv(os.path.join(input_folder_path, name), index = False)
+
+################################################################################
+
+################################## Main code ###################################
+
+if __name__ == '__main__':
+
+    process_zip_part('zips_for_mit11.csv')
 
 ################################################################################

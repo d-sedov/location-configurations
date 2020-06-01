@@ -1,181 +1,184 @@
-################################################################################
-################################################################################
+###############################################################################
 #
-# FILE: establishments-summary.R
+# FILE: estimate_coefficients.R
 #
 # BY: Dmitry Sedov 
 #
-# CREATED: Thu Feb 13 2020
+# DATE: Tue May 5 2020
 #
-# DESC: This file creates a table with establishment summary statistics.
+# DESC: This code contains the code for the estimation of mean coefficients in 
+#       the delta-regression.
 #
-################################################################################
-################################################################################
+# IN:
+#     0. Estimated deltas.
+#     1. Data frame of instruments.
+#
+###############################################################################
 
 
-################################ Libraries #####################################
+################################ Constants ####################################
 
-library(readr)
-library(dplyr)
-library(xtable)
-library(kableExtra)
-library(jsonlite)
-library(tidyr)
-library(ggplot2)
-library(scales)
-
-################################################################################
-
-################################# Options ######################################
-
-# Set the tables properties
-# Footnote font size
-options(xtable.size = 'footnotesize')
-# Page top placement
-options(xtable.table.placement = 't')
-
-# Input folder
-input_folder_path = '/Users/muser/dfolder/Research/urban/data/output/descriptive'
-
-# Output folders
-tables_folder_path = '/Users/muser/dfolder/Research/urban/output/tables/descriptive'
-plots_folder_path = '/Users/muser/dfolder/Research/urban/output/plots/descriptive'
-
-# Visits data vintage
-year = '2018'
-month = 'October'
+days = 31
+input_folder = '/home/quser/project_dir/urban/data/output/spatial-demand/main_demand'
+summary_file_path = file.path(input_folder, 'minimization_summary_optimized.csv')
 
 # My theme for plots 
-my_theme <- theme(legend.text = element_text(size = 14),
-                  legend.title = element_text(size= 16),
-                  plot.title = element_text(hjust = 0.5, size = 18)
+my_theme <- theme(legend.text = element_text(size = 6),
+                  legend.title = element_text(size = 8),
+                  plot.title = element_text(hjust = 0.5, size = 10),
+                  axis.text = element_text(size = 6),
+                  axis.title = element_text(size = 8)
 )
 mycolorscheme1 <- c('black', 'orange', 'purple')
 mycolorscheme2 <- c('blue', 'red', 'darkgreen')
 mycolorscheme3 <- c('#e70300', '#00279a', '#009500', '#722ab5', '#ffe200')
 
-################################################################################
+###############################################################################
 
-################################# Functions ####################################
 
-# This function computes the summary statistics for a variable
-simple_summary <- function(data, var) {
-    require(dplyr)
-    require(tibble)
-    data %>% 
-        select(!!sym(var)) %>% 
-        summarise_all(list(perc_na = function(x){100 * 
-                sum(is.na(x)) / length(x)},
-                q10 = ~quantile(., 0.1, na.rm = T),
-                q25 = ~quantile(., 0.25, na.rm = T), 
-                median = ~median(as.numeric(.), na.rm = T), 
-                q75 = ~quantile(., 0.75, na.rm = T), 
-                q90 = ~quantile(., 0.9, na.rm = T),
-                mean = ~mean(., na.rm = T), 
-                sd = ~sd(., na.rm = T)
-        )
-        ) %>%
-        add_column(v = var, .before = 1)
+################################ Libraries ####################################
+
+library(readr)
+library(dplyr)
+library(lfe)
+library(dplyr)
+library(ggplot2)
+library(gsubfn)
+library(data.table)
+library(stargazer)
+
+###############################################################################
+
+
+################################# Functions ###################################
+
+deltas_file_path <- function(x) {
+    folder_name <- paste0('cbsa', x)
+    file_name <- paste0('deltas_optimized', x, '.csv')
+    file_path <- file.path(input_folder, folder_name, file_name)
+    return(file_path)
 }
 
-################################################################################
+restaurants_file_path <- function(x) {
+    folder_name <- paste0('cbsa', x)
+    file_name <- paste0('restaurants', x, '.csv')
+    file_path <- file.path(input_folder, folder_name, file_name)
+    return(file_path)
+}
 
-############################## Prepare data ####################################
+###############################################################################
 
-# Import data
-establishments <- read_csv(file.path(input_folder_path, 'data_establishments.csv'))
 
-# Transform the total minutes open variable
-establishments <- establishments %>%
-    mutate(perc_time_open = 100 * total_minutes_open / (24 * 60 * 31)) %>%
-    mutate(perc_time_open = replace(perc_time_open,  
-                                    which(perc_time_open <= 0.1 | perc_time_open >= 100.1), 
-                                    NA))
-# Encode 'urban' establishments
-establishments <- establishments %>%
-    mutate(urban = !is.na(cbsa)) 
+################################# Main code ###################################
 
-# Extract the first two digits of NAICS codes:
-establishments <- establishments %>%
-    mutate(naics_first2 = as.integer(substr(as.character(naics_code), 1, 2)))
+# Read the minimization summary file
+minimization_summary_optimized <- read_csv(summary_file_path, col_names = FALSE)
 
-# NAICS industry names data frame
-naics_codes <- c(11, 21, 22, 23, 
-                 31, 32, 33, 
-                 42, 44, 45, 
-                 48, 49, 
-                 51, 52, 53,
-                 54, 55, 56, 
-                 61, 62, 
-                 71, 72, 
-                 81, 92)
-naics_names <- c("Agriculture", "Mining", "Utilities", "Construction",
-                 "Manufacturing (1)", "Manufacturing (2)", "Manufacturing (3)",
-                 "Wholesale", "Retail (1)", "Retail (2)",
-                 "Transportation", "Warehousing",
-                 "Information", "Finance", "R. Estate",
-                 "Professional", "Management", "Administrative",
-                 "Education", "Health",
-                 "Entertainment","Food + Accom.",
-                 "Services", "Pub. Adm."
-)
-naics_codes_names <- data.frame(naics_first2 = naics_codes, 
-                                Industry = naics_names)
+# Get deltas for all restaurants
+all_delta_paths <- sapply(minimization_summary_optimized$X1, deltas_file_path)
+delta_list <- lapply(all_delta_paths, read_csv)
+deltas <- bind_rows(delta_list)
 
-################################################################################
+# Get restaurant feautres
+all_rest_paths <- sapply(minimization_summary_optimized$X1, restaurants_file_path)
+rest_list <- lapply(all_rest_paths, read_csv, 
+                    col_types = cols(zip_code = col_character(), 
+                                     r_cbg = col_character(), 
+                                     r_cbsa = col_character()))
+restaurants <- bind_rows(rest_list)
 
-############################## Summary table ###################################
-
-# Variables to summarise
-vars <- c('urban',
-          'area_m2',
-          'perc_time_open',
-          'raw_visit_counts'
+# Get instruments
+restaurants_neighbors_features <- read_csv(file.path(input_folder, 
+                                                     'restaurants_neighbors_features.csv')
 )
 
-# Compute total POI count by NAICS categories
-naics_basic <- establishments %>% 
-    group_by(naics_first2) %>%
-    summarise(Quantity = n() / 1000)
+# Clean variables
+restaurants <- restaurants %>% mutate(brands = replace(brands, is.na(brands), 'none'))
+restaurants <- restaurants %>% mutate(category1 = replace(category1, is.na(category1), 'none'))
 
-# Compute averages by NAICS categories, transform urban variable to percentages
-naics_extended <- establishments %>% 
-    group_by(naics_first2) %>% 
-    summarise_at(vars, mean, na.rm = T) %>%
-    mutate(urban = 100 * urban)
+# Join with instruments
+restaurants <- left_join(restaurants, restaurants_neighbors_features)
+restaurants <- left_join(restaurants, deltas)
 
-# Join summaries
-establishments_summary <- right_join(naics_codes_names, naics_basic) %>%
-    inner_join(naics_extended) %>%
-    arrange(-Quantity) %>%
-    select(-naics_first2)
+sample <- restaurants
 
-# Column names change
-cols <- c(`% Time open` = 'perc_time_open',
-          `% Urban` = 'urban',
-          `Area (sq. m)` = 'area_m2',
-          `Visits` = 'raw_visit_counts'
-          )
-establishments_summary <- establishments_summary %>%
-    rename(!!cols)
+# Group missing price together; group high-price restaurants together
+#sample <- sample %>% 
+#  mutate(price = replace(price, is.na(price), 0)) %>%
+#  mutate(price = replace(price, price == -1, 0))
+sample <- sample %>% 
+    mutate(price = replace(price, price %in% c(3, 4), 2))
+# Relevel the price category factor
+sample <- sample %>% 
+    mutate(price = as.character(price)) %>%
+    mutate(price = factor(price)) %>% 
+    mutate(price = relevel(price, ref = '1')) 
 
-# Produce the LaTeX table
-outfile = file.path(tables_folder_path, 'establishments_summary_table.tex')
-xtable(establishments_summary,
-       caption = 'Establishments dataset codes summary statistics.',
-       label = 'establishments_summary_table',
-       digits = c(0,0,1,0,1,0,1)) %>% 
-    xtable2kable(include.rownames = FALSE,
-                 booktabs = TRUE) %>%
-    add_header_above(c(' ', ' ', 'Averages' = 4), bold = TRUE, italic = TRUE) %>%
-    row_spec(row = 0, bold = TRUE) %>%
-    add_footnote(paste('\\scriptsize{\\emph{Note}: Subset of data for',
-                       month,
-                       paste0(year, '.}')
-                       ),
-                 notation = 'none',
-                 escape = FALSE
-                 ) %>%
-    cat(file = outfile)
+# Group small brands an categories into one
+sample <- sample %>% group_by(brands) %>% 
+    mutate(n_brands = n()) %>% 
+    ungroup() %>%
+    mutate(brands = replace(brands, n_brands <= 100, 'none')) %>%
+    select(-n_brands)
 
-################################################################################
+sample <- sample %>% group_by(category1) %>% 
+    mutate(n_category1 = n()) %>% 
+    ungroup() %>%
+    mutate(category1 = replace(category1, n_category1 <= 100, 'none')) %>%
+    select(-n_category1)
+
+sample <- sample %>% mutate(rating_2 = rating ^ 2)
+
+# Create the missing indicators for time and rating
+sample <- sample %>% 
+    mutate(time_not_avail = is.na(total_minutes_open)) %>% 
+    mutate(total_minutes_open = replace(total_minutes_open, time_not_avail, 0))
+sample <- sample %>% 
+    mutate(rating_not_avail = is.na(rating)) %>% 
+    mutate(rating = replace(rating, rating_not_avail, 0), 
+           rating_2 = replace(rating_2, rating_not_avail, 0))
+
+# Options to consider: look or not look at the non-matched restaurants
+# Logs instead of levels
+# Instruments
+# Regressors: include / exclude
+# Reporting coefficients: price, rating, rating^2, area, n_categories, total_minutes_open
+
+fit_ols <- felm(data = sample, delta ~ price + factor(rating_not_avail) + rating + rating_2 + n_categories + factor(time_not_avail) + total_minutes_open + est_nearby + is_part + devices_nearby + area_m2| r_cbsa + brands + category1 )
+fit_iv <- felm(data = sample, delta ~ price + factor(rating_not_avail) + rating + rating_2 + n_categories + factor(time_not_avail) + total_minutes_open + est_nearby + is_part + devices_nearby | r_cbsa + brands + category1 | (area_m2 ~ neighbor_rating), exactDOF = TRUE)
+
+stargazer(fit_ols, 
+          fit_iv, 
+          type = 'latex',
+          omit = c(1, 3, 7, 8, 9, 10, 11), 
+          omit.stat = c('rsq', 'adj.rsq', 'ser'),
+          add.lines = list(`CBSA FE` = c('CBSA FE', 'Yes', 'Yes'), 
+                           `Brand FE` = c('Brand FE', 'Yes', 'Yes'), 
+                           `Category FE` = c('Category FE', 'Yes', 'Yes'), 
+                           `Open` = c('Time controls', 'Yes', 'Yes'), 
+                           `Nearby` = c('Location controls', 'Yes', 'Yes'), 
+                           `SE` = c('SE', 'Robust', 'Robust'), 
+                           `F` = c('F-stat','', '14.87')
+          ),
+          digits = 3, 
+          digits.extra = 0,
+          align = TRUE
+)
+
+# Plot the distribution of rhos
+ggplot(minimization_summary_optimized, 
+       aes(X2)) + 
+    geom_density(color = mycolorscheme3[1], 
+                 fill = mycolorscheme3[1]) + 
+    theme_bw(base_family = 'Times') + 
+    my_theme + xlab('Rhos across CBSAs') +
+    ylab('Density')
+
+ggplot(deltas,
+       aes(delta)) +
+    geom_density(color = mycolorscheme3[2], 
+                 fill = mycolorscheme3[2]) + 
+    theme_bw(base_family = 'Times') + 
+    my_theme + xlab('Deltas across restaurants') + ylab('Density')
+
+###############################################################################
