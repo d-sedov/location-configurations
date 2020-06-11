@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH -A pnumber               
 #SBATCH -p short               
-#SBATCH -t 04:00:00           
+#SBATCH -t 00:30:00           
 #SBATCH -N 1                 
 #SBATCH -n 1                
 #SBATCH --mem=32GB          

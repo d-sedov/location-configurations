@@ -59,17 +59,14 @@ import_altered_visits <- function(cbsa){
   cbsa_folder_name <- paste0('cbsa', cbsa)
   main_file_path <- file.path(output_folder, 
                               cbsa_folder_name, 
-                              paste0('online_visits_altered', cbsa, '.csv')
+                              paste0('all_visits_altered', cbsa, '.csv')
                               )
   cbsa_parts_path <- file.path(output_folder, 
                                cbsa_folder_name,
                                'parts'
                                )
-  main_altered_visits <- read_csv(main_file_path, col_names = FALSE) %>%
-    rename(sname_place_id = X1, 
-           visits = X2, 
-           altered_visits_p1 = X3, 
-           diff = X4)
+  main_altered_visits <- read_csv(main_file_path, col_names = TRUE) 
+    # %>% rename(sname_place_id = X1, visits = X2, altered_visits_p1 = X3, diff = X4)
   if (dir.exists(cbsa_parts_path)) {
     online_file_list <- list.files(cbsa_parts_path, pattern = 'online')
     parts_altered_visits <- lapply(online_file_list, 
@@ -100,7 +97,7 @@ restaurants_file_path <- function(x) {
 # Function to remove outliers
 remove_outliers <- function(x, na.rm = TRUE, ...) {
   qnt <- quantile(x, probs=c(.25, .75), na.rm = na.rm, ...)
-  H <- 4 * IQR(x, na.rm = na.rm)
+  H <- 2 * IQR(x, na.rm = na.rm)
   y <- x
   y[x < (qnt[1] - H)] <- NA
   y[x > (qnt[2] + H)] <- NA
@@ -156,6 +153,10 @@ restaurants <- restaurants %>%
   mutate(price = replace(price, price %in% c(3, 4), 2))
 restaurants <- restaurants %>% mutate(price = factor(price))
 
+# Output the estimated markups
+estimated_markups_outfile <- file.path(output_folder, 'restaurants_estimated_markups.csv')
+write_csv(restaurants, estimated_markups_outfile)
+
 # Remove outliers
 restaurants <- restaurants %>%  
   mutate_at(vars(estimated_markup), 
@@ -179,7 +180,8 @@ p1 <- ggplot(data = restaurants %>% filter((!is.na(price)) & (price != -1)),
 
 ggsave(filename = file.path('/home/quser', 'markups_distribution.pdf'), 
        device = cairo_pdf, plot = p1, width = 3.25, height = 2)
-embed_fonts(file.path('/home/quser', 'markups_distribution.pdf'))
+embed_fonts(file.path('/home/quser/project_dir/urban/output/plots/', 
+                      'markups_distribution.pdf'))
 
 markups_summary <- restaurants %>% 
   filter(as.character(price) %in% c('1', '2')) %>% 
@@ -192,7 +194,8 @@ markups_summary <- restaurants %>%
             Q90 = quantile(estimated_markup, probs = 0.9, na.rm = TRUE)
            )
 
-outfile = file.path('/home/quser', 'markups_summary.tex')
+outfile = file.path('/home/quser/project_dir/urban/output/tables/', 
+                    'markups_summary.tex')
 kable(markups_summary, 'latex', booktabs = T, digits = 3) %>%
     cat(file = outfile)
 

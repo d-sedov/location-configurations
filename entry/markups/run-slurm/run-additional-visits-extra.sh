@@ -1,13 +1,13 @@
 #!/bin/bash
 #SBATCH -A pnumber               
-#SBATCH -p normal
-#SBATCH -t 48:00:00           
+#SBATCH -p short
+#SBATCH -t 01:00:00           
 #SBATCH -N 1                 
 #SBATCH -n 1                
-#SBATCH --mem=32GB          
+#SBATCH --mem=64GB          
 #SBATCH --mail-user=qmail 
 #SBATCH --mail-type=BEGIN,END,FAIL
-#SBATCH --array=1-24%24
+#SBATCH --array=1-25%25
 #SBATCH --error=arrayJob_%A_%a.err
 #SBATCH --output=arrayJob_%A_%a.out
 #SBATCH --job-name="additional-extra"

@@ -34,7 +34,7 @@ library(stargazer)
 
 days = 31
 input_folder = '/home/quser/project_dir/urban/data/output/spatial-demand/main_demand'
-output_folder = '/home/quser'
+output_folder = '/home/quser/project_dir/urban/output/plots/'
 markup_output_folder = '/home/quser/project_dir/urban/data/output/entry/markups'
 summary_file_path = file.path(input_folder, 'minimization_summary_optimized.csv')
 
@@ -153,8 +153,13 @@ sample <- sample %>% mutate(log_area = log(area_m2))
 fit_ols <- felm(data = sample, delta ~ price + factor(rating_not_avail) + rating + rating_2 + n_categories + factor(time_not_avail) + total_minutes_open + est_nearby + is_part + devices_nearby + area_m2 | r_cbsa + brands + category1 )
 fit_iv <- felm(data = sample, delta ~ price + factor(rating_not_avail) + rating + rating_2 + n_categories + factor(time_not_avail) + total_minutes_open + est_nearby + is_part + devices_nearby | r_cbsa + brands + category1 | (area_m2 ~ neighbor_rating), exactDOF = TRUE)
 
-fit_iv <- felm(data = sample, delta ~ price + factor(rating_not_avail) + rating + rating_2 + n_categories + factor(time_not_avail) + total_minutes_open + est_nearby + is_part + devices_nearby + log_area | r_cbsa + brands + category1 )
+fit_ols <- felm(data = sample, delta ~ price + factor(rating_not_avail) + rating + rating_2 + n_categories + factor(time_not_avail) + total_minutes_open + est_nearby + is_part + devices_nearby + log_area | r_cbsa + brands + category1 | 0 | r_cbsa + brands + category1, exactDOF = TRUE)
+fit_iv <- felm(data = sample, delta ~ price + factor(rating_not_avail) + rating + rating_2 + n_categories + factor(time_not_avail) + total_minutes_open + est_nearby + is_part + devices_nearby | r_cbsa + brands + category1 | (log_area ~ neighbor_rating + neighbor_n_categories + neighbor_category1_equal) | r_cbsa + brands + category1, exactDOF = TRUE)
+cluster_f_stat<- condfstat(fit_iv)
+
+fit_ols <- felm(data = sample, delta ~ price + factor(rating_not_avail) + rating + rating_2 + n_categories + factor(time_not_avail) + total_minutes_open + est_nearby + is_part + devices_nearby + log_area | r_cbsa + brands + category1 | 0 , exactDOF = TRUE)
 fit_iv <- felm(data = sample, delta ~ price + factor(rating_not_avail) + rating + rating_2 + n_categories + factor(time_not_avail) + total_minutes_open + est_nearby + is_part + devices_nearby | r_cbsa + brands + category1 | (log_area ~ neighbor_rating + neighbor_n_categories + neighbor_category1_equal), exactDOF = TRUE)
+robust_f_stat<- condfstat(fit_iv)
 area_coefficient <- fit_iv$coefficients[length(fit_iv$coefficients)]
 
 # Write files for markup estimation
@@ -164,14 +169,12 @@ small_cbsa_path <- file.path(markup_output_folder, 'markup_list_small.csv')
 minimization_summary_optimized <- minimization_summary_optimized %>%
   mutate(X4 = area_coefficient) %>% select(-X3)
 small_cbsa_out <- minimization_summary_optimized %>%
-  slice(1 : (n() - 60)) %>%
-  filter(X1 != '16980')
+  slice(1 : (n() - 60)) # %>% filter(X1 != '16980')
 large_cbsa_out <- minimization_summary_optimized %>% 
-  slice((n() - 59) : (n() - 25)) %>%
-  filter(X1 != '16980')
+  slice((n() - 59) : (n() - 25)) # %>% filter(X1 != '16980')
 extra_cbsa_out <- minimization_summary_optimized %>% 
-  slice((n() - 24) : (n() - 1)) %>%
-  filter(X1 != '16980')
+  slice((n() - 24) : (n())) # %>% filter(X1 != '16980')
+
 write_csv(small_cbsa_out, small_cbsa_path, col_names = FALSE)
 write_csv(large_cbsa_out, large_cbsa_path, col_names = FALSE)
 write_csv(extra_cbsa_out, extra_cbsa_path, col_names = FALSE)
@@ -187,7 +190,7 @@ stargazer(fit_ols,
                            `Open` = c('Time controls', 'Yes', 'Yes'), 
                            `Nearby` = c('Location controls', 'Yes', 'Yes'), 
                            `SE` = c('SE', 'Robust', 'Robust'), 
-                           `F` = c('F-stat','', '14.87')
+                           `F` = c('F-stat','', as.character(robust_f_stat))
           ),
           digits = 3, 
           digits.extra = 0,

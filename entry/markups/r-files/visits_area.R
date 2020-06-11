@@ -190,6 +190,40 @@ visits_if_log_area_increased <- function(sg_id, area_coef, added_unit) {
   return(list(sname_place_id = sg_id, marginal_visits = marginal_visits))
 }
 
+
+visits_log_area_derivative <- function(area_coef) {
+  # Function to compute the derivative of visits with respect to 
+  # area for all restaruants in a given area.
+  
+  # Copy the pairs - deltas joined dataframe 
+  pairs_deltas <- copy(pairs_deltas_iteration)
+ 
+  pairs_deltas[,
+               `:=`(
+                 choice_utility = exp(delta + rho1 * distance_km + rho2 * distance_km_2)
+               )
+               ] 
+  pairs_deltas[,
+               `:=`(
+                 total_utility = 1 + sum(choice_utility)),
+               by = .(home_cbg)
+               ]
+  # Compute the visits derivative on the CBG level
+  pairs_deltas[,
+               derivative := (total_pop * 
+                                days * 
+                                (choice_utility / total_utility) * 
+                                (1 - (choice_utility / total_utility)) *
+                                (area_coef / area_m2)
+                              )
+               ]
+  # Compute the total derivative 
+  pairs_deltas <- pairs_deltas[,
+                               .(total_derivative = sum(derivative)),
+                               by = .(sname_place_id)]
+  return(pairs_deltas)
+}
+
 ###############################################################################
 
 
@@ -204,61 +238,99 @@ cbsa_folder_name <- paste0('cbsa', cbsa)
 cat('cbsa: ', cbsa, '\n')
 # Create directory if it doesn't exist yet
 dir.create(file.path(output_folder, cbsa_folder_name), showWarnings = FALSE)
-# Set 'online-results' path
-online_results_file_name <- paste0('online_visits_altered', cbsa, '.csv')
-online_results_file_path <- file.path(output_folder, cbsa_folder_name, online_results_file_name)
 
 # Prepare data
-list[pairs, deltas] <- PrepareData(cbsa)
-
-# Compute the predicted number of visits
-pairs_deltas_main <- merge(pairs,
-                           deltas,
-                           by = 'sname_place_id',
-                           all.x = T)
-pairs_deltas_main[,
-                  `:=`(
-                    choice_utility =  exp(delta + rho1 * distance_km + rho2 * distance_km_2)
-                  )
-                  ]
-pairs_deltas_main[,
-                  `:=`(
-                    total_utility = 1 + sum(choice_utility)),
-                  by = .(home_cbg)
-                  ]
-pairs_deltas_main[,
-                  choices_made := total_pop * days * (choice_utility / total_utility)
-                  ]
-visits <- pairs_deltas_main[,
-                            .(visits = sum(choices_made)),
-                            by = .(sname_place_id)]
+list[pairs, deltas, restaurants] <- PrepareData(cbsa)
+restaurants <- restaurants[, .(sname_place_id, area_m2)]
 
 # Join pairs and deltas for iteration over sname id, changing area
 pairs_deltas_iteration <- merge(pairs, 
                                 deltas,
                                 by = 'sname_place_id', 
                                 all.x = T)
+pairs_deltas_iteration <- merge(pairs_deltas_iteration, 
+                                restaurants,
+                                by = 'sname_place_id', 
+                                all.x = T)
 
-# Compute visits when extra area unit is added / subtracted
-altered_visits_p1 <- lapply(deltas$sname_place_id, 
-                            function(x) {visits_if_area_increased(x, c_a)})
-# altered_visits_m1 <- lapply(deltas$sname_place_id, 
-#                            function(x) {visits_if_area_increased(x, -c_a)})
-
-# Convert the list to dataframe
-altered_visits_p1 <- rbindlist(lapply(altered_visits_p1, as.data.frame, stringsAsFactors = FALSE))
-# altered_visits_m1 <- rbindlist(lapply(altered_visits_m1, as.data.frame, stringsAsFactors = FALSE))
-
-# Rename columns
-altered_visits_p1 <- altered_visits_p1 %>% rename(visits_p1 = altered_visits)
-# altered_visits_m1 <- altered_visits_m1 %>% rename(visits_m1 = altered_visits)
-
-visits <- visits %>% left_join(altered_visits_p1) # %>% left_join(altered_visits_m1) 
-visits <- visits %>% mutate(diff_p1 = visits_p1 - visits) # %>% mutate(diff_m1 = visits - visits_m1)
+# Compute visits derivatives:
+altered_visits <- visits_log_area_derivative(c_a)
+altered_visits <- altered_visits %>% rename(diff = total_derivative)
 
 # Export the altered visits
 visits_altered_file_name <- paste0('all_visits_altered', cbsa, '.csv')
 visits_altered_file_path <- file.path(output_folder, cbsa_folder_name, visits_altered_file_name)
-write_csv(visits, visits_altered_file_path)
+write_csv(altered_visits, visits_altered_file_path)
+
+###############################################################################
+
+
+################################### Archive ###################################
+
+# args <- commandArgs(trailingOnly = TRUE)
+# cbsa <- as.character(args[1])
+# rho1 <- as.numeric(args[2])
+# rho2 <- 0
+# c_a <- as.numeric(args[3])
+# cbsa_folder_name <- paste0('cbsa', cbsa)
+# cat('cbsa: ', cbsa, '\n')
+# # Create directory if it doesn't exist yet
+# dir.create(file.path(output_folder, cbsa_folder_name), showWarnings = FALSE)
+# # Set 'online-results' path
+# online_results_file_name <- paste0('online_visits_altered', cbsa, '.csv')
+# online_results_file_path <- file.path(output_folder, cbsa_folder_name, online_results_file_name)
+# 
+# # Prepare data
+# list[pairs, deltas] <- PrepareData(cbsa)
+# 
+# # Compute the predicted number of visits
+# pairs_deltas_main <- merge(pairs,
+#                            deltas,
+#                            by = 'sname_place_id',
+#                            all.x = T)
+# pairs_deltas_main[,
+#                   `:=`(
+#                     choice_utility =  exp(delta + rho1 * distance_km + rho2 * distance_km_2)
+#                   )
+#                   ]
+# pairs_deltas_main[,
+#                   `:=`(
+#                     total_utility = 1 + sum(choice_utility)),
+#                   by = .(home_cbg)
+#                   ]
+# pairs_deltas_main[,
+#                   choices_made := total_pop * days * (choice_utility / total_utility)
+#                   ]
+# visits <- pairs_deltas_main[,
+#                             .(visits = sum(choices_made)),
+#                             by = .(sname_place_id)]
+# 
+# # Join pairs and deltas for iteration over sname id, changing area
+# pairs_deltas_iteration <- merge(pairs, 
+#                                 deltas,
+#                                 by = 'sname_place_id', 
+#                                 all.x = T)
+# 
+# # Compute visits when extra area unit is added / subtracted
+# altered_visits_p1 <- lapply(deltas$sname_place_id, 
+#                             function(x) {visits_if_area_increased(x, c_a)})
+# # altered_visits_m1 <- lapply(deltas$sname_place_id, 
+# #                            function(x) {visits_if_area_increased(x, -c_a)})
+# 
+# # Convert the list to dataframe
+# altered_visits_p1 <- rbindlist(lapply(altered_visits_p1, as.data.frame, stringsAsFactors = FALSE))
+# # altered_visits_m1 <- rbindlist(lapply(altered_visits_m1, as.data.frame, stringsAsFactors = FALSE))
+# 
+# # Rename columns
+# altered_visits_p1 <- altered_visits_p1 %>% rename(visits_p1 = altered_visits)
+# # altered_visits_m1 <- altered_visits_m1 %>% rename(visits_m1 = altered_visits)
+# 
+# visits <- visits %>% left_join(altered_visits_p1) # %>% left_join(altered_visits_m1) 
+# visits <- visits %>% mutate(diff_p1 = visits_p1 - visits) # %>% mutate(diff_m1 = visits - visits_m1)
+# 
+# # Export the altered visits
+# visits_altered_file_name <- paste0('all_visits_altered', cbsa, '.csv')
+# visits_altered_file_path <- file.path(output_folder, cbsa_folder_name, visits_altered_file_name)
+# write_csv(visits, visits_altered_file_path)
 
 ###############################################################################
