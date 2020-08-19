@@ -167,20 +167,21 @@ p1 <- ggplot(data = restaurants %>% filter((!is.na(price)) & (price != -1)),
   stat_density_ridges(geom = "density_ridges_gradient", 
                       calc_ecdf = TRUE, 
                       quantiles = 4,
-                      size = 0.1,
+                      size = 0.25,
                       quantile_lines = FALSE) + xlim(0, 30) + 
   scale_fill_manual(values = c('#00025a', '#1a2c8f', '#8081c1', '#CCC0E6'), name = 'Quartiles') +
   theme_bw(base_family = 'Times') + 
-  scale_y_discrete(expand = expansion(mult = c(0.3, 1.95))) + 
+  scale_y_discrete(expand = expansion(mult = c(0.2, 1.25))) + 
   theme(legend.key.size = unit(0.125, 'inches'),
         plot.margin = margin(5, 5, 5, 5, 'pt')) + 
   my_theme +
   ylab('Price category') +
   xlab('Estimated markup')
 
-ggsave(filename = file.path('/home/quser', 'markups_distribution.pdf'), 
-       device = cairo_pdf, plot = p1, width = 3.25, height = 2)
-embed_fonts(file.path('/home/quser/project_dir/urban/output/plots/', 
+ggsave(filename = file.path('/home/quser/project_dir/urban/output/plots/model', 
+                            'markups_distribution.pdf'), 
+       device = cairo_pdf, plot = p1, width = 4.25, height = 2.25)
+embed_fonts(file.path('/home/quser/project_dir/urban/output/plots/model', 
                       'markups_distribution.pdf'))
 
 markups_summary <- restaurants %>% 
@@ -194,7 +195,7 @@ markups_summary <- restaurants %>%
             Q90 = quantile(estimated_markup, probs = 0.9, na.rm = TRUE)
            )
 
-outfile = file.path('/home/quser/project_dir/urban/output/tables/', 
+outfile = file.path('/home/quser/project_dir/urban/output/tables/model/', 
                     'markups_summary.tex')
 kable(markups_summary, 'latex', booktabs = T, digits = 3) %>%
     cat(file = outfile)

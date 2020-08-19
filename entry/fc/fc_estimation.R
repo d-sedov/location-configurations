@@ -35,13 +35,14 @@ library(lfe)
 
 days <- 31
 input_folder <- '/home/quser/project_dir/urban/data/output/entry/markups'
+tables_output_folder = '/home/quser/project_dir/urban/output/tables/model'
 population_folder <- '/home/quser/project_dir/urban/data/output/descriptive'
 summary_file_path <- file.path(input_folder, 'minimization_summary_optimized.csv')
 
 # Time discounting parameter
-phi <- 0.965
+# phi <- 0.97
 
-# Population normalization
+# Population normalization: ACTUALLY THIS NEEDS TO BE COMPUTED PROPERLY!!!
 population_norm <- 10
 
 # My theme for plots 
@@ -70,6 +71,62 @@ remove_outliers <- function(x, na.rm = TRUE, ...) {
   y
 }
 
+# Create two models as a function of the discount rate:
+estimate_fc <- function(phi, restaurants) {
+  # Compute profits:
+  restaurants <- restaurants %>% 
+    mutate(profit = ((population_norm * raw_visit_counts * estimated_markup) - 
+                       10.7 * mean_rate * area_m2
+    )
+    ) %>%
+    mutate(profit = profit / (1 - phi))
+  
+  # Drop missing prices and turn price into vector
+  restaurants <- restaurants %>% 
+    mutate(price = replace(price, is.na(price), 0)) %>%
+    mutate(price = replace(price, price == -1, 0)) %>%
+    filter(price != 0) %>%
+    mutate(price = as.character(price)) %>%
+    mutate(price = factor(price)) %>% 
+    mutate(price = relevel(price, ref = '1')) 
+  
+  # Recover the fixed costs
+  
+  # Strategy 1
+  fit1 <- felm(data = restaurants, profit ~ 0 + price | 0 | 0 | r_cbsa)
+  
+  # Strategy 2
+  ef <- function(gamma, addnames) {
+    ref1 <- mean(gamma[1 : 381])
+    gamma[1 : 381] <- gamma[1:381] - ref1
+    gamma[[382]] <- gamma[[382]] + ref1
+    gamma[[383]] <- gamma[[383]] + ref1
+    if(addnames) {
+      names(gamma) <- c(paste('r_cbsa',1:381,sep='.'),
+                        paste('price',1:2, sep='.'))
+    }
+    gamma
+  }
+  fit2 <- felm(data = restaurants, profit ~ 1 | r_cbsa + price | 0 | r_cbsa)
+  fit2_fe <- getfe(fit2, ef = ef, bN = 1000,se = TRUE)
+  fit2_shadow <- fit1
+  fit2_shadow$coefficients <- matrix(data = c(fit2_fe['price.1', 'effect'], 
+                                              fit2_fe['price.2', 'effect']),
+                                     nrow = 2, ncol = 1, 
+                                     dimnames = list(c('price1', 'price2'), 'profit'))
+  fit2_shadow$beta <- matrix(data = c(fit2_fe['price.1', 'effect'],
+                                      fit2_fe['price.2', 'effect']),
+                             nrow = 2, ncol = 1,
+                             dimnames = list(c('price1', 'price2'), 'profit'))
+  fit2_shadow$cse <- c('price1' = fit2_fe['price.1', 'clusterse'],
+                       'price2' = fit2_fe['price.2', 'clusterse'])
+  fit2_shadow$cpval <- c('price1' = (1 - fit2_fe['price.1', 'effect'] / fit2_fe['price.1', 'clusterse']) / 2,
+                         'price2' = (1 - fit2_fe['price.2', 'effect'] / fit2_fe['price.2', 'clusterse']) / 2
+  )
+
+  return(list(fit1, fit2_shadow))  
+}
+
 ###############################################################################
 
 
@@ -82,18 +139,72 @@ restaurants <- read_csv(estimated_markups_path)
 restaurants <- restaurants %>%  
   mutate_at(vars(estimated_markup), 
             funs(remove_outliers))
+# Replace NA brands with 'none'
+restaurants <- restaurants %>% mutate(brands = replace(brands, is.na(brands), 'none'))
+# Group small brands an categories into one
+restaurants <- restaurants %>% group_by(brands) %>% 
+  mutate(n_brands = n()) %>% 
+  ungroup() %>%
+  mutate(brands = replace(brands, n_brands <= 100, 'none')) %>%
+  select(-n_brands)
 
-# Compute profits:
-restaurants <- restaurants %>% 
-  mutate(profit = ((population_norm * raw_visit_counts * estimated_markup) - 
-                     10.7 * mean_rate * area_m2
-                   )
-         ) %>%
-  mutate(profit = profit / (1 - phi))
+non_branded_restaurants <- restaurants %>% filter(brands == 'none')
 
-fit <- felm(data = restaurants, profit ~ factor(price) | r_cbsa | 0 | r_cbsa)
-fit_fe <- getfe(fit)
+estimated_models_all <- lapply(c(0.965, 0.97, 0.975), estimate_fc, restaurants)
+estimated_models_non_branded <- lapply(c(0.965, 0.97, 0.975), 
+                                       estimate_fc, 
+                                       non_branded_restaurants)
 
-fc_estimate <- mean(fit_fe$effect, na.rm = T)
+# Display the results
+stargazer(estimated_models_all[[1]][[1]], 
+          estimated_models_all[[1]][[2]],
+          estimated_models_all[[2]][[1]], 
+          estimated_models_all[[2]][[2]],
+          estimated_models_all[[3]][[1]], 
+          estimated_models_all[[3]][[2]],
+          type = 'latex', 
+          align = TRUE,
+          omit.stat = c('rsq', 'adj.rsq', 'ser'),
+          star.cutoffs = c(0.1, 0.05, 0.01),
+          digits = 1, 
+          digits.extra = 0,
+          out = file.path(tables_output_folder,
+                          'fixed_costs_estimates_all.tex'),
+          notes = 'CBSA-clustered standard errors in parentheses.',
+          notes.append = TRUE,
+          column.labels = c('phi=0.965', 'phi=0.97', 'phi=0.975'),
+          column.separate = c(2, 2, 2),
+          model.numbers = TRUE,
+          dep.var.labels.include = FALSE,
+          dep.var.caption = '',
+          covariate.labels = c('FC($)', 
+                               'FC($$)')
+)
+
+stargazer(estimated_models_non_branded[[1]][[1]], 
+          estimated_models_non_branded[[1]][[2]],
+          estimated_models_non_branded[[2]][[1]], 
+          estimated_models_non_branded[[2]][[2]],
+          estimated_models_non_branded[[3]][[1]], 
+          estimated_models_non_branded[[3]][[2]],
+          type = 'latex', 
+          align = TRUE,
+          omit.stat = c('rsq', 'adj.rsq', 'ser'),
+          star.cutoffs = c(0.1, 0.05, 0.01),
+          digits = 1, 
+          digits.extra = 0,
+          out = file.path(tables_output_folder,
+                          'fixed_costs_estimates_non_branded.tex'),
+          notes = 'CBSA-clustered standard errors in parentheses.',
+          notes.append = TRUE,
+          column.labels = c('phi=0.965', 'phi=0.97', 'phi=0.975'),
+          column.separate = c(2, 2, 2),
+          model.numbers = TRUE,
+          dep.var.labels.include = FALSE,
+          dep.var.caption = '',
+          covariate.labels = c('FC($)', 
+                               'FC($$)')
+)
+
 
 ###############################################################################
