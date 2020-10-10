@@ -38,7 +38,7 @@ options(xtable.size = 'footnotesize')
 options(xtable.table.placement = 't')
 
 # Input folder
-input_folder_path = '/Users/muser/dfolder/Research/urban/data/output/descriptive'
+input_folder_path = '/home/quser/project_dir/urban/data/output/descriptive'
 
 # Output folders
 tables_folder_path = '/Users/muser/dfolder/Research/urban/output/tables/descriptive'

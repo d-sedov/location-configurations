@@ -156,30 +156,57 @@ estimated_models_non_branded <- lapply(c(0.965, 0.97, 0.975),
                                        non_branded_restaurants)
 
 # Display the results
-stargazer(estimated_models_all[[1]][[1]], 
+latex_table <-
+  stargazer(estimated_models_all[[1]][[1]], 
           estimated_models_all[[1]][[2]],
           estimated_models_all[[2]][[1]], 
           estimated_models_all[[2]][[2]],
           estimated_models_all[[3]][[1]], 
           estimated_models_all[[3]][[2]],
           type = 'latex', 
+          title = paste('Fixed cost estimates.',
+                        'Columns (2), (4), (6) report estimates with across-market zero average profit condition enforced.',
+                        'CBSA-clustered standard errors in parentheses.',
+                        'Only the restaurants with non-missing price category are included in the estimation.'),
+          label = 'tab:fc_estimates',
+          table.placement = '!t',
           align = TRUE,
           omit.stat = c('rsq', 'adj.rsq', 'ser'),
           star.cutoffs = c(0.1, 0.05, 0.01),
           digits = 1, 
           digits.extra = 0,
-          out = file.path(tables_output_folder,
-                          'fixed_costs_estimates_all.tex'),
-          notes = 'CBSA-clustered standard errors in parentheses.',
           notes.append = TRUE,
-          column.labels = c('phi=0.965', 'phi=0.97', 'phi=0.975'),
+          column.labels = c('$\\varphi=0.965$', '$\\varphi=0.97$', '$\\varphi=0.975$'),
           column.separate = c(2, 2, 2),
           model.numbers = TRUE,
           dep.var.labels.include = FALSE,
           dep.var.caption = '',
-          covariate.labels = c('FC($)', 
-                               'FC($$)')
+          covariate.labels = c('FC(\\$)', 
+                               'FC(\\$\\$)'),
+          add.lines = list(`CBSA FE` = c('\\rowfont{\\footnotesize}CBSA FE',
+                                         '', '\\multicolumn{1}{c}{\\checkmark}', 
+                                         '', '\\multicolumn{1}{c}{\\checkmark}',
+                                         '', '\\multicolumn{1}{c}{\\checkmark}')) 
+                           
 )
+
+latex_table <- c(latex_table[1:7],
+                 '\\resizebox{\\textwidth}{!}{',
+                 latex_table[8:10],
+                 '\\cmidrule(l){2-3} \\cmidrule(l){4-5} \\cmidrule(l){6-7}',
+                 latex_table[11:24], 
+                 '}',
+                 latex_table[25])
+
+latex_table <- gsub('tabular', 'tabu', latex_table, fixed = T)
+latex_table <- gsub('Observations', '\\rowfont{\\footnotesize} Observations', latex_table, fixed = T)
+latex_table <- gsub('R$^{2}$', '\\rowfont{\\footnotesize} R$^{2}$', latex_table, fixed = T)
+latex_table <- gsub('Adjusted', '\\rowfont{\\footnotesize} Adjusted', latex_table, fixed = T)
+
+outfile <- file.path(tables_output_folder,
+                     'fixed_costs_estimates_all.tex')
+
+cat(paste(latex_table, collapse = '\n'), file = outfile)
 
 stargazer(estimated_models_non_branded[[1]][[1]], 
           estimated_models_non_branded[[1]][[2]],

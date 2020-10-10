@@ -46,6 +46,14 @@ my_theme <- theme(legend.text = element_text(size = 6),
                   axis.text = element_text(size = 6),
                   axis.title = element_text(size = 8)
 )
+
+my_theme_large <- theme(legend.text = element_text(size = 10),
+                        legend.title = element_text(size = 12),
+                        plot.title = element_text(hjust = 0.5, size = 20),
+                        axis.text = element_text(size = 10),
+                        axis.title = element_text(size = 12)
+)
+
 mycolorscheme1 <- c('black', 'orange', 'purple')
 mycolorscheme2 <- c('blue', 'red', 'darkgreen')
 mycolorscheme3 <- c('#e70300', '#00279a', '#009500', '#ffe200', '#722ab5')
@@ -163,7 +171,7 @@ restaurants <- restaurants %>%
             funs(remove_outliers))
 
 p1 <- ggplot(data = restaurants %>% filter((!is.na(price)) & (price != -1)), 
-       aes(x = estimated_markup, y = price, fill = factor(stat(quantile)))) + 
+       aes(x = estimated_markup, y = factor(price), fill = factor(stat(quantile)))) + 
   stat_density_ridges(geom = "density_ridges_gradient", 
                       calc_ecdf = TRUE, 
                       quantiles = 4,
@@ -199,5 +207,150 @@ outfile = file.path('/home/quser/project_dir/urban/output/tables/model/',
                     'markups_summary.tex')
 kable(markups_summary, 'latex', booktabs = T, digits = 3) %>%
     cat(file = outfile)
+
+###############################################################################
+
+
+######################### Second iteration ####################################
+
+# Import iterated markups
+estimated_markups <- read_csv(file.path(output_folder, 'restaurants_estimated_markups.csv'))
+
+# Remove outliers
+estimated_markups <- estimated_markups %>%  
+  mutate_at(vars(estimated_markup), 
+            funs(remove_outliers))
+
+p1 <- ggplot(data = estimated_markups %>% filter((!is.na(price)) & (price != -1)), 
+             aes(x = estimated_markup, y = factor(price), fill = factor(stat(quantile)))) + 
+  stat_density_ridges(geom = "density_ridges_gradient", 
+                      calc_ecdf = TRUE, 
+                      quantiles = 4,
+                      size = 0.25,
+                      quantile_lines = FALSE) + xlim(0, 30) + 
+  scale_fill_manual(values = sapply(seq(0.25, 1, by = 0.25), function(x) {adjustcolor("#00279a", alpha.f = x)}), name = 'Quartiles') +
+  theme_bw(base_family = 'Times') + 
+  scale_y_discrete(expand = expansion(mult = c(0.2, 1.25)), labels = c('$', '$$')) + 
+  theme(legend.key.size = unit(0.125, 'inches'),
+        plot.margin = margin(5, 5, 5, 5, 'pt')) + 
+  my_theme +
+  ylab('Price category') +
+  xlab('Estimated per-visit markup in dollars') + theme(legend.position = c(0.99, 0.99),
+                                                        legend.justification = c("right", "top"),
+                                                        legend.direction="vertical",
+                                                        legend.box.just = "left",
+                                                        legend.key.width = unit(0.3, "cm"),
+                                                        legend.key.height = unit(0.3, "cm")) +
+  theme(plot.margin = unit(c(0,0.15,0,0), "in"))
+
+ggsave(filename = file.path('/home/quser/project_dir/urban/output/plots/model', 
+                            'markups_distribution.pdf'), 
+       device = cairo_pdf, plot = p1, width = 4.0, height = 2.5)
+embed_fonts(file.path('/home/quser/project_dir/urban/output/plots/model', 
+                      'markups_distribution.pdf'))
+
+
+markups_summary <- estimated_markups %>% 
+  filter(as.character(price) %in% c('1', '2')) %>% 
+  group_by(price) %>%
+  summarise(Mean = mean(estimated_markup, na.rm = TRUE),
+            Q10 = quantile(estimated_markup, probs = 0.1, na.rm = TRUE),
+            Q25 = quantile(estimated_markup, probs = 0.25, na.rm = TRUE),
+            Med = quantile(estimated_markup, probs = 0.5, na.rm = TRUE),
+            Q75 = quantile(estimated_markup, probs = 0.75, na.rm = TRUE),
+            Q90 = quantile(estimated_markup, probs = 0.9, na.rm = TRUE)
+  ) %>%
+  mutate(price = strrep('$', price)) %>%
+  rename(`Price` = price)
+
+outfile = file.path('/home/quser/project_dir/urban/output/tables/model/', 
+                    'markups_summary.tex')
+kable(markups_summary, 'latex', booktabs = T, digits = 2) %>%
+  row_spec(0, bold = T, italic = T) %>%
+  cat(file = outfile)
+
+estimated_markups <- estimated_markups %>%
+  left_join(deltas)
+
+sample <- estimated_markups %>% 
+  mutate(price = replace(price, is.na(price), 0)) %>%
+  mutate(price = replace(price, price == -1, 0)) %>%
+  mutate(price = replace(price, price %in% c(3, 4), 2))
+# Relevel the price category factor
+sample <- sample %>% 
+  mutate(price = as.character(price)) %>%
+  mutate(price = factor(price)) %>% 
+  mutate(price = relevel(price, ref = '1')) 
+
+# Clean variables
+sample <- sample %>% mutate(brands = replace(brands, is.na(brands), 'none'))
+sample <- sample %>% mutate(category1 = replace(category1, is.na(category1), 'none'))
+
+# Group small brands an categories into one
+sample <- sample %>% group_by(brands) %>% 
+  mutate(n_brands = n()) %>% 
+  ungroup() %>%
+  mutate(brands = replace(brands, n_brands <= 100, 'none')) %>%
+  select(-n_brands)
+
+sample <- sample %>% group_by(category1) %>% 
+  mutate(n_category1 = n()) %>% 
+  ungroup() %>%
+  mutate(category1 = replace(category1, n_category1 <= 100, 'none')) %>%
+  select(-n_category1)
+
+sample <- sample %>% mutate(rating_2 = rating ^ 2)
+
+# Create the missing indicators for time and rating
+sample <- sample %>% 
+  mutate(time_not_avail = is.na(total_minutes_open)) %>% 
+  mutate(total_minutes_open = replace(total_minutes_open, time_not_avail, 0))
+sample <- sample %>% 
+  mutate(rating_not_avail = is.na(rating)) %>% 
+  mutate(rating = replace(rating, rating_not_avail, 0), 
+         rating_2 = replace(rating_2, rating_not_avail, 0))
+
+sample <- sample %>% mutate(log_area = log(area_m2))
+
+
+fit_delta_markup <- felm(data = sample, delta ~ estimated_markup | r_cbsa + brands + category1 | 0 | r_cbsa + brands, 
+                                   exactDOF = TRUE)
+
+fit_markup_characteristics <- felm(data = sample, estimated_markup ~ price + rating + rating_2 | r_cbsa + brands + category1 | 0 | r_cbsa + brands, 
+                                   exactDOF = TRUE)
+
+outfile <- file.path('/home/quser/project_dir/urban/output/tables/model', 
+                     'markups_quality_characteristics.tex')
+latex_table <-
+  stargazer(fit_delta_markup, 
+          fit_markup_characteristics, 
+          type = 'latex', 
+          title = paste('Relationship between (1) restaurant quality and estimated markups;', 
+                        '(2) estimated markups and restaurant characteristics.',
+                        'Standard errors robust to market and brand clusterting in parentheses.'),
+          label = 'tab:markups_quality_characteristics',
+          table.placement = "!t",
+          omit.stat = c('ser'), 
+          omit = 2,
+          dep.var.labels = c('$\\delta_r$', '$(p^*-mc)_r$'),
+          covariate.labels = c('$(p^*-mc)_r$', 
+                               'Price [\\$\\$ vs \\$]', 
+                               'Rating', 
+                               'Rating$^2$'),
+          add.lines = list(`CBSA FE` = c('\\rowfont{\\footnotesize}CBSA FE', '\\multicolumn{1}{c}{\\checkmark}', '\\multicolumn{1}{c}{\\checkmark}'), 
+                           `Brand FE` = c('\\rowfont{\\footnotesize}Brand FE', '\\multicolumn{1}{c}{\\checkmark}', '\\multicolumn{1}{c}{\\checkmark}'), 
+                           `Category FE` = c('\\rowfont{\\footnotesize}Category FE', '\\multicolumn{1}{c}{\\checkmark}', '\\multicolumn{1}{c}{\\checkmark}')
+                           ),
+          digits = 3, 
+          digits.extra = 0,
+          align = TRUE,
+          star.cutoffs = c(0.1, 0.05, 0.01)
+  )
+
+latex_table <- gsub('tabular', 'tabu', latex_table, fixed = T)
+latex_table <- gsub('Observations', '\\rowfont{\\footnotesize} Observations', latex_table, fixed = T)
+latex_table <- gsub('R$^{2}$', '\\rowfont{\\footnotesize} R$^{2}$', latex_table, fixed = T)
+latex_table <- gsub('Adjusted', '\\rowfont{\\footnotesize} Adjusted', latex_table, fixed = T)
+cat(paste(latex_table, collapse = '\n'), file = outfile)
 
 ###############################################################################

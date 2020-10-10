@@ -1,34 +1,15 @@
 ###############################################################################
 #
-# FILE: reallocation_counterfactual.R
+# FILE: excessive_entry.R
 #
 # BY: Dmitry Sedov 
 #
-# DATE: Tue Jun 16 2020
+# DATE: Wed Sep 9 2020
 #
-# DESC: This code contains the code to construct welfare / profits measure 
-#       under counterfactual allocations of firms over the space.
+# DESC: This code contains the code to determine the percentage of firms that 
+#       can be removed without harming consumer welfare or total industry 
+#       profits.
 #
-# FUNC:
-#     1. compute_maximum_expected_utility - compute the measure of consumer welfare.
-#     2. compute_profits - compute firms profits under the new allocation.
-#     3. find_rho - find the change in distance costs such that consumer welfare 
-#        changes as much as under counterfactual allocation.
-#     4. change_allocation - reorder firms across space.
-#     5. explore_direction - change allocation to improve the consumer welfare, profits 
-#        with weights given by direction.
-#
-# ALG: 
-#     UNDER status-quo:
-#         for rho in (-0.5, -0.01):
-#             1. compute_maximum_expected_utility
-#         collecte expected maximum utilities in a dataframe (max_ut_default)
-#     REPEAT [until convergence / iterations thereshold is met]: 
-#             1. Swap two firms
-#             2. compute_maximum_expected_utility -> r_i
-#             3. compute profits, Delta(profits) -> d_i
-#             4. Update allocation across the space if both average utility and 
-#                profits are improved
 #
 ###############################################################################
 
@@ -45,19 +26,21 @@ library(kableExtra)
 library(ggridges)
 library(extrafont)
 library(lfe)
-library(scales)
 
 ###############################################################################
 
 
 ################################ Constants ####################################
 
+max_time <- 3.75 * 3600
+
 days <- 31
+
 # Output file path
 output_file_path <- file.path('/home/quser/project_dir/urban/data/output', 
                               'counterfactuals', 
-                              'reallocation', 
-                              'reallocate_output.csv')
+                              'excessive_entry', 
+                              'deleted_firms.csv')
 
 # Variuos input paths
 input_folder <- '/home/quser/project_dir/urban/data/output/spatial-demand/main_demand'
@@ -67,8 +50,7 @@ rent_folder_path <- '/home/quser/project_dir/urban/data/output/rent'
 
 # The rho-minimization summary path
 summary_file_path = file.path(input_folder, 'minimization_summary_optimized.csv')
-
-# Theme for plots 
+# My theme for plots 
 my_theme <- theme(legend.text = element_text(size = 6),
                   legend.title = element_text(size = 8),
                   plot.title = element_text(hjust = 0.5, size = 10),
@@ -266,7 +248,7 @@ compute_maximum_expected_utility <- function(reordered_restaurants, rho1) {
                                 all.y = FALSE,
                                 by = 'location_id', 
                                 allow.cartesian = TRUE
-                                )
+  )
   
   # Compute product values on the home cbg level
   matched_pairs_deltas[, 
@@ -367,35 +349,6 @@ find_rho <- function(max_exp_u) {
   return(value$root)
 }
 
-change_allocation <- function(reordered_restaurants, n_move, quant_low, quant_high) {
-  
-  distance_high <- quantile(reordered_restaurants$weighted_distance, quant_high)
-  # Select which restaurants are allowed to be shuffled
-  quant_low <- quantile(reordered_restaurants$delta, probs = quant_low)
-  quant_high <- quantile(reordered_restaurants$delta, probs = quant_high)
-  rows_to_reshuffle <- which(between(reordered_restaurants$delta, quant_low, quant_high) & 
-                               !is.na(reordered_restaurants$markup) &
-                               reordered_restaurants$weighted_distance <= distance_high
-                             )
-  
-  # Reshuffle restaurants
-  rows_to_reshuffle <- sample(rows_to_reshuffle, n_move)
-  new_order <- rows_to_reshuffle
-  while (all(new_order == rows_to_reshuffle)) {
-    new_order <- sample(rows_to_reshuffle)
-  }
-  reordered_restaurants$location_id[rows_to_reshuffle] <- reordered_restaurants$location_id[new_order]
-  
-  # Compute metrics
-  v1 <- compute_maximum_expected_utility(reordered_restaurants, rho1) 
-  v2 <- compute_profits(reordered_restaurants, rho1) 
-  
-  value <- list(reordered_restaurants_mod = reordered_restaurants, 
-                metrics = c(max_exp_u = v1, total_profit = v2))
-  
-  return(value)
-}
-
 
 shift_firm <- function(rests, available_firms, available_locations) {
   # Function to move a single firm to a new location
@@ -405,7 +358,7 @@ shift_firm <- function(rests, available_firms, available_locations) {
   
   # Change the location of the firm randomly:
   new_location <- sample(x = available_locations, size = 1)
-  rests[firm_to_shift, location_id := new_location]
+  rests[.(firm_to_shift), location_id := new_location]
   
   # Compute total profits and welfare metrics:
   v1 <- compute_maximum_expected_utility(rests, rho1) 
@@ -422,12 +375,12 @@ switch_firms <- function(rests, available_firms) {
   
   # Select 2 firms to switch:
   firms_to_shift <- sample(x = available_firms, size = 2)
-  firm1_location <- rests[firms_to_shift[1], location_id]
-  firm2_location <- rests[firms_to_shift[2], location_id]
+  firm1_location <- rests[.(firms_to_shift[1]), location_id]
+  firm2_location <- rests[.(firms_to_shift[2]), location_id]
   
   # Switch locations:
-  rests[firms_to_shift[1], location_id := firm2_location]
-  rests[firms_to_shift[2], location_id := firm1_location]
+  rests[.(firms_to_shift[1]), location_id := firm2_location]
+  rests[.(firms_to_shift[2]), location_id := firm1_location]
   
   # Compute total profits and welfare metrics:
   v1 <- compute_maximum_expected_utility(rests, rho1) 
@@ -439,139 +392,22 @@ switch_firms <- function(rests, available_firms) {
   return(value)
 }
 
-explore_direction <- function(x, y, n) {
-  # Function to move allocation in the x - y direction in a stochastic greedy way:
-  
-  data_test <- data.frame(mu = 0, p = 0, col = 'highlight')
-  data_test$col <- as.character(data_test$col)
-  
-  current_max1 <- 0
-  current_max2 <- 0
-  
-  reordered_restaurants <- initial_restaurants
-  
-  for (i in 1 : n) {
-    if (i %% 100 == 0) {
-      cat(paste0('Step: ', i, '.\n'))  
-    }
-    change <- 0
-    n_move <- 2 
-    while (change <= 0) {
-      list[rest_mod, metrics]  <- change_allocation(reordered_restaurants, 
-                                                    n_move = n_move, 
-                                                    quant_low = 0.1, 
-                                                    quant_high = 0.9)
-      now_max_exp_u <- metrics[1]
-      metrics[1] <- (metrics[1] - d_max_exp_u) / d_max_exp_u
-      metrics[2] <- (metrics[2] - d_profits) / abs(d_profits)
-      m1 <- metrics[1] - current_max1
-      m2 <- metrics[2] - current_max2
-      change <- c(x, y) %*% c(m1, m2) # (m1 > 0) & (m2 > 0) #
-      # print(m1)
-      # print(m2)
-      # cat('Change:', change, '.\n')
-    }
-    reordered_restaurants <- rest_mod
-    current_max1 <- metrics[1]
-    current_max2 <- metrics[2]
-    
-    data_test$col[ data_test$col == 'new' ] <- 'normal'
-    
-    data_test[nrow(data_test) + 1, ] <- c(metrics[1],
-                                          metrics[2],
-                                          'new')
-    data_test$mu <- as.numeric(data_test$mu)
-    data_test$p <- as.numeric(data_test$p)
-    mycolours <- c("highlight" = "red", "normal" = "grey50", 'new' = 'green')
-    
-    #pic <- ggplot(data = data_test, aes(x = mu, y = p, color = col)) +
-    #  geom_point() + 
-    #  scale_colour_manual(name = "col", values = mycolours) 
-    # print(metrics)
-    #print(pic)
-  }
-  value <- list(max_exp_u = now_max_exp_u, p = current_max2, rest_final = rest_mod)
-  return(value)
-}
-
-find_best_allocation <- function(max_time) {
-  # Function to improve the allocation in both directions in a stochastic greedy way:
-  
-  start.time <- Sys.time()
-  stop <- FALSE
-  
-  data_test <- data.frame(mu = 0, p = 0, col = 'highlight')
-  data_test$col <- as.character(data_test$col)
-  
-  current_max1 <- 0
-  current_max2 <- 0
-  
-  reordered_restaurants <- initial_restaurants
-  n <- 1
-  while (TRUE) {
-    
-    change <- 0
-    n_move <- 2 
-    while (!change) {
-      list[rest_mod, metrics]  <- change_allocation(reordered_restaurants, 
-                                                    n_move = n_move, 
-                                                    quant_low = 0.1, 
-                                                    quant_high = 0.9)
-      m1 <- metrics[1] - current_max1
-      m2 <- metrics[2] - current_max2
-      change <- (m1 > 0) & (m2 > 0) 
-      
-      now.time <- Sys.time()
-      if (as.numeric(difftime(now.time, start.time, units = 'secs')) > max_time) {
-        stop <- TRUE
-        break
-      }
-    }
-    reordered_restaurants <- rest_mod
-    current_max1 <- metrics[1]
-    current_max2 <- metrics[2]
-    
-    data_test$col[ data_test$col == 'new' ] <- 'normal'
-    
-    data_test[nrow(data_test) + 1, ] <- c(metrics[1],
-                                          metrics[2],
-                                          'new')
-    data_test$mu <- as.numeric(data_test$mu)
-    data_test$p <- as.numeric(data_test$p)
-    mycolours <- c("highlight" = "red", "normal" = "grey50", 'new' = 'green')
-    
-    #pic <- ggplot(data = data_test, aes(x = mu, y = p, color = col)) +
-    #  geom_point() + 
-    #  scale_colour_manual(name = "col", values = mycolours) 
-    # print(metrics)
-    #print(pic)
-    print(as.numeric(difftime(now.time, start.time, units = 'secs')))
-    if (stop) {break}
-    n <- n + 1
-  }
-  value <- list(max_exp_u = current_max1, p = current_max2, rest_final = rest_mod, n = n)
-  return(value)
-}
-
-
-shift_switch_improve_allocation <- function(max_time) {
-  # Function to improve the allocation in both directions in a stochastic greedy way
-  # by shifting and switching firms
+delete_improve_allocation <- function(max_time) {
+  # Function to delete a firm randomly, then improve the allocation in both 
+  # so that both total profits and consumer welfare are at least as good as in the 
+  # status-quo
   
   # Start time recording
   start.time <- Sys.time()
   stop <- FALSE
   
-  data_out <- data.frame(mu = 0, p = 0, col = 'highlight')
-  data_out$col <- as.character(data_out$col)
-  
-  # Current max consumer welfare and total profits
-  current_max_cw <- d_max_exp_u
-  current_max_profits <- d_profits
+  # Current welfare and total profits
+  current_cw <- d_max_exp_u
+  current_profits <- d_profits
   
   # Start reordering restaurants
   reordered_restaurants <- copy(initial_restaurants)
-
+  
   # Determine restaurants to be affected by re-configuration
   # Area threshold
   area_threshold <- quantile(initial_restaurants$area_m2, 0.8)
@@ -589,18 +425,29 @@ shift_switch_improve_allocation <- function(max_time) {
   available_locations <- initial_restaurants %>% pull(location_id)
   
   # Save number of alterations by type:
-  n_shifts <- 0
-  n_switches <- 0
+  n_deletes <- 0
   
   n_outer <- 0
   while (TRUE) { 
-    # Reorder firm while time limit not reached
+    # Delete and reorder firm while time limit not reached
     
     n_outer <- n_outer + 1
     
     change <- 0
     n_inner <- 0
+    
+    # Delete firm randomly, record new metrics
+    if ((current_cw >= d_max_exp_u) & (current_profits >= d_profits)) {
+      firm_delete_id <- sample(available_firms, 1)
+      reordered_restaurants <- reordered_restaurants[rest_id != firm_delete_id, ]
+      available_firms <- available_firms[available_firms != firm_delete_id]
+      current_cw <- compute_maximum_expected_utility(reordered_restaurants, rho1) 
+      current_profits <- compute_profits(reordered_restaurants, rho1) 
+      n_deletes <- n_deletes + 1
+      print(paste('Deleted:', n_deletes))
+    }
 
+    # Improve metrics by shifting and switching
     while (!change) {
       # Reorder until change in both metrics
       reordered_restaurants_inner <- copy(reordered_restaurants)
@@ -614,11 +461,11 @@ shift_switch_improve_allocation <- function(max_time) {
       }
       
       # How did the welfare metrics change?
-      m1 <- metrics[1] - current_max_cw
-      m2 <- metrics[2] - current_max_profits
-     
+      m1 <- metrics[1] - current_cw
+      m2 <- metrics[2] - current_profits
+      
       change <- (m1 > 0) & (m2 > 0) 
-
+      
       # Break if time limit reached
       now.time <- Sys.time()
       if (as.numeric(difftime(now.time, start.time, units = 'secs')) > max_time) {
@@ -628,120 +475,54 @@ shift_switch_improve_allocation <- function(max_time) {
       
     }
     
-    if ((n_outer + n_inner) %% 2 == 0) {
-      n_shifts <- n_shifts + 1
-    } else {
-      n_switches <- n_switches + 1 
-    }
-    
     # Update allocation and welfare metrics
     reordered_restaurants <- rest_mod
-    current_max_cw <- metrics[1]
-    current_max_profits <- metrics[2]
-    
-    # Depict the change
-    #data_out$col[data_out$col == 'new' ] <- 'normal'
-    
-    #data_out[nrow(data_out) + 1, ] <- c((metrics[1] - d_max_exp_u) / d_max_exp_u,
-    #                                    (metrics[2] - d_profits) / d_profits,
-    #                                      'new')
-    #data_out$mu <- as.numeric(data_out$mu)
-    #data_out$p <- as.numeric(data_out$p)
-    #mycolours <- c("highlight" = "red", "normal" = "grey50", 'new' = 'green')
-    
-    #pic <- ggplot(data = data_out, aes(x = mu, y = p, color = col)) +
-    #  geom_point() + 
-    #  scale_colour_manual(name = "col", values = mycolours) 
-    #print(metrics)
-    #print(pic)
-    #print(as.numeric(difftime(now.time, start.time, units = 'secs')))
-    
+    current_cw <- metrics[1]
+    current_profits <- metrics[2]
+
     # Break if time limit reached
     if (stop) {break}
-
+    
   }
-  value <- list(max_exp_u = current_max_cw, 
-                p = current_max_profits, 
-                rest_final = rest_mod, 
-                n = n_outer,
-                n_shifts = n_shifts, 
-                n_switches = n_switches)
+  value <- list(n_deletes = n_deletes, 
+                reordered_restaurants = reordered_restaurants)
   return(value)
 }
 
-# Function to remove outliers
-remove_outliers <- function(x, na.rm = TRUE, ...) {
-  qnt <- quantile(x, probs=c(.25, .75), na.rm = na.rm, ...)
-  H <- 2 * IQR(x, na.rm = na.rm)
-  y <- x
-  y[x < (qnt[1] - H)] <- NA
-  y[x > (qnt[2] + H)] <- NA
-  y
+###############################################################################
+
+
+################################## Main code ##################################
+
+# Take the input parameters
+args <- commandArgs(trailingOnly = TRUE)
+cbsa <- as.character(args[1])
+
+list[pairs, initial_restaurants, locations, restaurant_features, location_features] <- PrepareData(cbsa)
+
+# Compute the status-quo outcomes
+d_max_exp_u <- compute_maximum_expected_utility(initial_restaurants, rho1) 
+d_profits <- compute_profits(initial_restaurants, rho1) 
+
+# Delete firms, reallocate to save welfare
+stats <- delete_improve_allocation(max_time)
+
+# Determine, which restaurants were deleted
+remaining_restaurants <- stats$reordered_restaurants %>% pull(rest_id)
+deleted_restaurants <- restaurant_features %>%
+  filter(!(rest_id %in% remaining_restaurants))
+
+deleted_restaurants_by_price <- deleted_restaurants %>%
+  group_by(price) %>% 
+  summarize(n = n())
+
+deleted_restaurants_by_price$cbsa <- cbsa
+
+# Save summary of the results
+if (file.exists(output_file_path)) {
+  write_csv(deleted_restaurants_by_price, output_file_path, append = TRUE)
+} else {
+  write_csv(deleted_restaurants_by_price, output_file_path, append = FALSE)
 }
 
 ###############################################################################
-
-
-################################ Test run #####################################
-# 12420 45300
-# cbsa <- '15380'
-# 
-# # Prepare the data
-# list[pairs, initial_restaurants, locations] <- PrepareData(cbsa)
-# 
-# d_max_exp_u <- compute_maximum_expected_utility(initial_restaurants, rho1) 
-# d_profits <- compute_profits(initial_restaurants, rho1) 
-# d_r <- rho1
-# 
-# x <- seq(-0.5, -0.01, 0.01)
-# y <- sapply(x, 
-#             function(x){compute_maximum_expected_utility(initial_restaurants, x)})
-# distance_cost_variation <- data_frame(rho = x, max_exp_u_default = y)
-# 
-# test_stats <- explore_direction(1, 1, 100)
-# 
-# find_rho(test_stats[1])
-
-###############################################################################
-
-
-# 
-# 
-# ######################## Create the list for Quest ############################
-# 
-# job_list_file <- file.path('/home/quser/project_dir/urban/', 
-#                            'data/output/counterfactuals/reallocation', 
-#                            'reallocation_list.csv')
-# job_list <- read_csv(job_list_file, col_names = FALSE)
-# cbsa_list <- c(15380,
-#                17140,
-#                17460,
-#                18140,
-#                25540,
-#                26900,
-#                27260,
-#                28140,
-#                29820,
-#                31140,
-#                32820,
-#                33340,
-#                34980,
-#                35380,
-#                36420,
-#                39300,
-#                39580,
-#                40060,
-#                41620,
-#                41940,
-#                46520,
-#                47260)
-# 
-# job_list_all <- lapply(cbsa_list[1 : 10], function(x){job_list %>% mutate(X1 = x, X4 = 1000)})
-# job_list_all <- do.call(rbind, job_list_all)
-# 
-# job_list_all_file <- file.path('/home/quser/project_dir/urban/', 
-#                            'data/output/counterfactuals/reallocation', 
-#                            'reallocation_list_all.csv')
-# 
-# write_csv(job_list_all, job_list_all_file, col_names = FALSE)
-# ###############################################################################
