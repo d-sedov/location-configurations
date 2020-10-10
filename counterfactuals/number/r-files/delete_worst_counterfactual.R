@@ -9,7 +9,6 @@
 # DESC: This code contains the code to construct welfare measures in case of 
 #       deleting the worst firms in the market. 
 #
-#
 ###############################################################################
 
 
@@ -159,6 +158,7 @@ for (j in 0 : max(count_quantiles)) {
   }
 }
 
+# Create the results summary
 output_data <- data_frame(perc_removed = perc_removed, 
                           rhos = rhos, 
                           average_quality = average_quality,

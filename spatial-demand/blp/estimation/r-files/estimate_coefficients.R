@@ -83,7 +83,7 @@ all_delta_paths <- sapply(minimization_summary_optimized$X1, deltas_file_path)
 delta_list <- lapply(all_delta_paths, read_csv)
 deltas <- bind_rows(delta_list) 
 
-# CHECK LATER
+# Pos. deltas
 deltas <- deltas %>% filter(delta <= 0)
 
 # Get restaurant feautres
@@ -150,12 +150,6 @@ sample <- sample %>%
 sample <- sample %>% mutate(area_m2_2 = area_m2 ^ 2, neighbor_rating_2 = neighbor_rating ^ 2)
 sample <- sample %>% mutate(sqrt_area_m2 = sqrt(area_m2))
 sample <- sample %>% mutate(log_area = log(area_m2))
-
-# Options to consider: look or not look at the non-matched restaurants
-# Logs instead of levels
-# Instruments
-# Regressors: include / exclude
-# Reporting coefficients: price, rating, rating^2, area, n_categories, total_minutes_open
 
 # fit_ols <- felm(data = sample, delta ~ price + factor(rating_not_avail) + rating + rating_2 + n_categories + factor(time_not_avail) + total_minutes_open + est_nearby + is_part + devices_nearby + area_m2 | r_cbsa + brands + category1 )
 # fit_iv <- felm(data = sample, delta ~ price + factor(rating_not_avail) + rating + rating_2 + n_categories + factor(time_not_avail) + total_minutes_open + est_nearby + is_part + devices_nearby | r_cbsa + brands + category1 | (area_m2 ~ neighbor_rating), exactDOF = TRUE)

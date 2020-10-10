@@ -42,7 +42,7 @@ summary_file_path <- file.path(input_folder, 'minimization_summary_optimized.csv
 # Time discounting parameter
 # phi <- 0.97
 
-# Population normalization: ACTUALLY THIS NEEDS TO BE COMPUTED PROPERLY!!!
+# Pop. norm.
 population_norm <- 10
 
 # My theme for plots 

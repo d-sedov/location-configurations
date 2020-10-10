@@ -9,7 +9,6 @@
 # DESC: This code contains the code to construct welfare measures in case of 
 #       adding 'average' firms to appropriate locations in the market. 
 #
-#
 ###############################################################################
 
 
@@ -83,6 +82,7 @@ y <- sapply(x,
             function(x){compute_maximum_expected_utility(initial_restaurants, x)})
 distance_cost_variation <- data_frame(rho = x, max_exp_u_default = y)
 
+# Initiate the adding procedure
 added <- initial_restaurants %>% sample_n(0)
 rhos_add <- c()
 rest_id_next <- max(initial_restaurants$rest_id)
@@ -155,6 +155,7 @@ for (j in 0 : max(count_quantiles)) {
   }
 }
 
+# Create the data with result summary
 output_data <- data_frame(perc_added = perc_added, 
                           rhos = rhos_add, 
                           average_quality = average_quality,

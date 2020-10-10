@@ -9,7 +9,6 @@
 # DESC: This code contains the code to construct welfare measures in case of 
 #       varying the number of firms in the market.
 #
-#
 ###############################################################################
 
 
@@ -257,6 +256,7 @@ compute_maximum_expected_utility <- function(reordered_restaurants, rho1) {
 }
 
 delete <- function(delete_for_sure, n_try, quant_low, quant_high) {
+  # Function to experiment with deleting firms from the market space
   
   # Select which restaurants are allowed to be deleted
   quant_low <- quantile(initial_restaurants$delta, probs = quant_low)
@@ -304,8 +304,9 @@ delete <- function(delete_for_sure, n_try, quant_low, quant_high) {
 
 
 add <- function(already_added, rest_id_next, n_try, quant_low, quant_high) {
+  # Function to experiment with adding firms to the market space
   
-  # Select thre restaurants that are allowed to be added
+  # Select the restaurants that are allowed to be added
   rows_to_add <- initial_restaurants %>% 
     filter(between(delta, quant_low, quant_high)) 
     
@@ -345,6 +346,7 @@ add <- function(already_added, rest_id_next, n_try, quant_low, quant_high) {
 
 
 add_average <- function(already_added, rest_id_next, n_try, average_delta) {
+  # Function to experiment with adding average firms to the market space
   
   sample_by_cbg <- location_features %>% 
     group_by(r_cbg) %>% 
@@ -410,33 +412,5 @@ find_rho <- function(max_exp_u) {
   
   return(value$root)
 }
-
-
-
-# removed <- c()
-# rhos <- c()
-# 
-# for (j in 1 : 250) {
-#   updated <- delete(removed, 10, 0.1, 0.9)
-#   removed <- updated$deleted
-#   removed_rho_equiv <- find_rho(updated$max_exp_u)
-#   rhos <- c(rhos, removed_rho_equiv)
-#   pic <- qplot(seq(1, j), rhos, geom = 'line')
-#   print(pic)
-# }
-# 
-# added <- initial_restaurants %>% sample_n(0)
-# rhos_add <- c()
-# rest_id_next <- max(initial_restaurants$rest_id)
-#   
-# for (j in 1 : 250) {
-#   rest_id_next <- rest_id_next + 1
-#   updated <- add(added, rest_id_next, 10, 0.1, 0.9)
-#   added <- updated$already_added
-#   added_rho_equiv <- find_rho(updated$max_exp_u)
-#   rhos_add <- c(rhos_add, added_rho_equiv)
-#   pic <- qplot(seq(1, j), rhos_add, geom = 'line')
-#   print(pic)
-# }
 
 ###############################################################################

@@ -1,3 +1,17 @@
+###############################################################################
+#
+# FILE: number_interpretation.R
+#
+# BY: Dmitry Sedov 
+#
+# DATE: Fri Jul 17 2020
+#
+# DESC: This code contains the code to interpret the consequences of
+#       altering the firm count in the market space.
+#
+###############################################################################
+
+
 ############################## Plot the results ###############################
 
 delete_worst_summary_file_path <- file.path('/home/quser/project_dir',
@@ -59,7 +73,8 @@ embed_fonts(file = file.path('/home/quser/project_dir/urban/output/plots/model',
                              'delete_worst_rhos.pdf'))
 
 
-# Depict, from which neighborhoods (in terms of number of available options) are the restaurants deleted
+# Depict, from which neighborhoods (in terms of number of available options) are 
+# the restaurants deleted
 pic <- ggplot() + 
   geom_line(data = delete_worst_summary, 
             aes(x = perc_removed, 

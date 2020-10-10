@@ -1,3 +1,16 @@
+###############################################################################
+#
+# FILE: reallocation_interpretation.R (legacy)
+#
+# BY: Dmitry Sedov 
+#
+# DATE: Tue Jun 16 2020
+#
+# DESC: This code permits to analyze the firm reconfiguration.
+#
+###############################################################################
+
+
 ############################## Plot the results ###############################
 
 output_file_path <- file.path('/home/quser/project_dir/urban/data/output', 

@@ -10,19 +10,21 @@
 #       under counterfactual allocations of firms over the space.
 #
 # FUNC:
+#     0. PrepareData - prepare the data needed for firm reconfiguration.
 #     1. compute_maximum_expected_utility - compute the measure of consumer welfare.
 #     2. compute_profits - compute firms profits under the new allocation.
 #     3. find_rho - find the change in distance costs such that consumer welfare 
 #        changes as much as under counterfactual allocation.
-#     4. change_allocation - reorder firms across space.
+#     4. change_allocation - reorder firms across space (legacy).
 #     5. explore_direction - change allocation to improve the consumer welfare, profits 
-#        with weights given by direction.
+#        with weights given by direction (legacy).
+#     6. shift_firm 
+#     7. switch_firms
+#     8. explore_direction (legacy)
+#     9. find_best_allocation (legacy)
+#     10. shift_switch_improve_allocation
 #
-# ALG: 
-#     UNDER status-quo:
-#         for rho in (-0.5, -0.01):
-#             1. compute_maximum_expected_utility
-#         collecte expected maximum utilities in a dataframe (max_ut_default)
+# Basic algorithm: 
 #     REPEAT [until convergence / iterations thereshold is met]: 
 #             1. Swap two firms
 #             2. compute_maximum_expected_utility -> r_i
@@ -368,6 +370,14 @@ find_rho <- function(max_exp_u) {
 }
 
 change_allocation <- function(reordered_restaurants, n_move, quant_low, quant_high) {
+  # IN: 
+  #     1. reordered_restaurants -- restaurants ordered by location
+  #     2. n_move -- by how many firm swithces should the allocation change
+  #     3. quant_low, quant_high -- paramters governing which firms are allowed to be 
+  #                                 reallocated.
+  #     
+  # OUT:
+  #     1. reordered restaurants and welfare metrics
   
   distance_high <- quantile(reordered_restaurants$weighted_distance, quant_high)
   # Select which restaurants are allowed to be shuffled
@@ -484,11 +494,6 @@ explore_direction <- function(x, y, n) {
     data_test$p <- as.numeric(data_test$p)
     mycolours <- c("highlight" = "red", "normal" = "grey50", 'new' = 'green')
     
-    #pic <- ggplot(data = data_test, aes(x = mu, y = p, color = col)) +
-    #  geom_point() + 
-    #  scale_colour_manual(name = "col", values = mycolours) 
-    # print(metrics)
-    #print(pic)
   }
   value <- list(max_exp_u = now_max_exp_u, p = current_max2, rest_final = rest_mod)
   return(value)
@@ -540,11 +545,6 @@ find_best_allocation <- function(max_time) {
     data_test$p <- as.numeric(data_test$p)
     mycolours <- c("highlight" = "red", "normal" = "grey50", 'new' = 'green')
     
-    #pic <- ggplot(data = data_test, aes(x = mu, y = p, color = col)) +
-    #  geom_point() + 
-    #  scale_colour_manual(name = "col", values = mycolours) 
-    # print(metrics)
-    #print(pic)
     print(as.numeric(difftime(now.time, start.time, units = 'secs')))
     if (stop) {break}
     n <- n + 1
@@ -639,23 +639,6 @@ shift_switch_improve_allocation <- function(max_time) {
     current_max_cw <- metrics[1]
     current_max_profits <- metrics[2]
     
-    # Depict the change
-    #data_out$col[data_out$col == 'new' ] <- 'normal'
-    
-    #data_out[nrow(data_out) + 1, ] <- c((metrics[1] - d_max_exp_u) / d_max_exp_u,
-    #                                    (metrics[2] - d_profits) / d_profits,
-    #                                      'new')
-    #data_out$mu <- as.numeric(data_out$mu)
-    #data_out$p <- as.numeric(data_out$p)
-    #mycolours <- c("highlight" = "red", "normal" = "grey50", 'new' = 'green')
-    
-    #pic <- ggplot(data = data_out, aes(x = mu, y = p, color = col)) +
-    #  geom_point() + 
-    #  scale_colour_manual(name = "col", values = mycolours) 
-    #print(metrics)
-    #print(pic)
-    #print(as.numeric(difftime(now.time, start.time, units = 'secs')))
-    
     # Break if time limit reached
     if (stop) {break}
 
@@ -705,8 +688,6 @@ remove_outliers <- function(x, na.rm = TRUE, ...) {
 ###############################################################################
 
 
-# 
-# 
 # ######################## Create the list for Quest ############################
 # 
 # job_list_file <- file.path('/home/quser/project_dir/urban/', 
